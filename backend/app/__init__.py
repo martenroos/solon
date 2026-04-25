@@ -1,0 +1,1 @@
+"""Solon backend application package."""
