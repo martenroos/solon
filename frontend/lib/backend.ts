@@ -36,6 +36,16 @@ export type BackendChatToolCall = {
   error?: string | null;
 };
 
+export type BackendChatQueryResult = {
+  id: string;
+  sql?: string | null;
+  columns: string[];
+  rows: Array<Record<string, string | number | boolean | null>>;
+  row_count: number;
+  max_rows: number;
+  truncated: boolean;
+};
+
 export type BackendChatToolInfo = {
   name: string;
   description: string;

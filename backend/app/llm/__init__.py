@@ -4,11 +4,18 @@ from app.llm.providers import (
     LLMProviderError,
     build_llm_provider,
 )
-from app.llm.tools import ChatTool, ToolExecutionContext, ToolRegistry, build_tool_registry
+from app.llm.tools import (
+    FINANCE_WAREHOUSE_QUERY_GUIDE,
+    ChatTool,
+    ToolExecutionContext,
+    ToolRegistry,
+    build_tool_registry,
+)
 from app.llm.types import LLMMessage, LLMRequest, LLMResponse, LLMToolCall, LLMToolDefinition
 
 __all__ = [
     "ChatTool",
+    "FINANCE_WAREHOUSE_QUERY_GUIDE",
     "LLMConfigurationError",
     "LLMMessage",
     "LLMProvider",

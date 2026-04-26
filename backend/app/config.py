@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
     database_url: str = "postgresql+asyncpg://solon:solon@localhost:5432/solon"
+    llm_database_url: str | None = None
     cors_origins: list[str] = ["http://localhost:3000"]
     frontend_internal_api_key: str = "change-me"
     frontend_user_auth_secret: str = Field(

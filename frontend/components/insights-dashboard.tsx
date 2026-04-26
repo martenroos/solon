@@ -15,9 +15,14 @@ import {
   Diff,
   Expand,
   EyeOff,
+  Gauge,
+  GripVertical,
+  Landmark,
   LayoutGrid,
   LineChart,
+  MoveDiagonal2,
   RefreshCcw,
+  ReceiptText,
   ScanSearch,
   ShieldAlert,
   ShoppingCart,
@@ -64,6 +69,7 @@ type TenantOption = {
 type TenantState = {
   visibleIds: string[];
   expandedIds: string[];
+  sizeById: Partial<Record<string, CardSize>>;
 };
 
 type TypeFilter = InsightType;
@@ -367,6 +373,164 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     icon: CreditCard,
   },
   {
+    id: "liquidity-gap-forecast",
+    title: "Liquidity gap forecast",
+    category: "prediction",
+    summary: "Forecasts whether expected cash-in, cash-out, and bank balances create a short-term liquidity gap.",
+    detail: "This is the most actionable cash forecast because it translates invoice timing into a funding or payment decision.",
+    dataSources: ["fact_open_item_snapshot", "fact_sales_invoice", "fact_purchase_invoice", "dim_ledger_account"],
+    value: "Cash risk",
+    actionLabel: "Plan cash gap",
+    size: "lg",
+    metric: "€220k",
+    delta: "Week 3 gap risk",
+    deltaDirection: "down",
+    status: "Alert",
+    trend: [72, 66, 61, 55, 48, 39, 32],
+    segments: [
+      { label: "Expected in", value: 44, tone: "bg-chart-2" },
+      { label: "Expected out", value: 51, tone: "bg-chart-5" },
+      { label: "Buffer", value: 5, tone: "bg-chart-4" },
+    ],
+    icon: Landmark,
+  },
+  {
+    id: "credit-limit-breach-risk",
+    title: "Customer credit limit breach risk",
+    category: "prediction",
+    summary: "Predicts customers likely to exceed credit limits or payment-term tolerance based on open AR and invoice behavior.",
+    detail: "This gives sales and credit control a concrete intervention point before more exposure is added.",
+    dataSources: ["dim_counterparty", "fact_open_item_snapshot", "fact_sales_invoice"],
+    value: "Credit",
+    actionLabel: "Review credit holds",
+    size: "md",
+    metric: "6 customers",
+    delta: "At breach risk",
+    deltaDirection: "down",
+    status: "Alert",
+    trend: [2, 3, 3, 4, 4, 5, 6],
+    icon: ShieldAlert,
+  },
+  {
+    id: "expected-bad-debt-risk",
+    title: "Expected bad debt risk",
+    category: "prediction",
+    summary: "Estimates receivables at elevated non-collection risk using aging, amount, and customer payment behavior.",
+    detail: "Useful for deciding which balances need escalation, provisions, or legal review before the next close.",
+    dataSources: ["fact_open_item_snapshot", "fact_sales_invoice", "dim_counterparty"],
+    value: "Loss risk",
+    actionLabel: "Escalate collections",
+    size: "md",
+    metric: "€84k",
+    delta: "Elevated risk",
+    deltaDirection: "down",
+    status: "Watch",
+    trend: [42, 45, 47, 50, 54, 57, 61],
+    icon: CreditCard,
+  },
+  {
+    id: "supplier-payment-priority",
+    title: "Supplier payment priority forecast",
+    category: "prediction",
+    summary: "Ranks which supplier payments should be protected using due dates, overdue pressure, and supplier concentration.",
+    detail: "Turns AP forecasting into a payment run decision instead of only showing upcoming cash-out.",
+    dataSources: ["fact_open_item_snapshot", "fact_purchase_invoice", "dim_counterparty"],
+    value: "Payment run",
+    actionLabel: "Prioritize suppliers",
+    size: "sm",
+    metric: "9 payments",
+    delta: "Protect this week",
+    deltaDirection: "flat",
+    status: "Watch",
+    trend: [5, 5, 6, 6, 7, 8, 9],
+    icon: BanknoteArrowDown,
+  },
+  {
+    id: "budget-exhaustion-date",
+    title: "Budget exhaustion date",
+    category: "prediction",
+    summary: "Forecasts when a team, account, or cost center will exhaust budget at the current spend pace.",
+    detail: "More actionable than variance alone because it gives finance a date for intervention or reallocation.",
+    dataSources: ["fact_budget", "fact_journal_entry_line", "dim_org_unit", "dim_ledger_account"],
+    value: "Runway",
+    actionLabel: "Move or pause spend",
+    size: "md",
+    metric: "May 18",
+    delta: "Earliest exhaustion",
+    deltaDirection: "down",
+    status: "Alert",
+    trend: [74, 68, 61, 54, 46, 38, 31],
+    icon: Gauge,
+  },
+  {
+    id: "month-end-close-variance",
+    title: "Month-end close variance forecast",
+    category: "prediction",
+    summary: "Predicts close-position variance before period end from posting cadence, run-rate, budget, and late entries.",
+    detail: "Helps controllers challenge likely misses while there is still time to correct coding or spending.",
+    dataSources: ["fact_budget", "fact_journal_entry_line", "dim_date", "dim_org_unit"],
+    value: "Close risk",
+    actionLabel: "Pre-close review",
+    size: "md",
+    metric: "€173k",
+    delta: "Projected miss",
+    deltaDirection: "down",
+    status: "Watch",
+    trend: [28, 34, 41, 49, 56, 64, 71],
+    icon: ReceiptText,
+  },
+  {
+    id: "margin-compression-warning",
+    title: "Margin compression early warning",
+    category: "prediction",
+    summary: "Forecasts margin pressure where revenue growth is being outpaced by direct cost movement.",
+    detail: "Gives leadership a pricing, delivery cost, or supplier negotiation signal before the P&L fully deteriorates.",
+    dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_org_unit"],
+    value: "Margin risk",
+    actionLabel: "Review cost drivers",
+    size: "md",
+    metric: "-2.1 pts",
+    delta: "Projected next period",
+    deltaDirection: "down",
+    status: "Watch",
+    trend: [58, 56, 53, 51, 49, 46, 44],
+    icon: TrendingDown,
+  },
+  {
+    id: "tax-exposure-forecast",
+    title: "Tax exposure forecast",
+    category: "prediction",
+    summary: "Projects VAT or tax payable movement from tax codes, recoverability, and posting patterns.",
+    detail: "Useful before filing periods because it can catch cash surprises and tax-code drift early.",
+    dataSources: ["fact_journal_entry_line", "dim_tax_code", "dim_date"],
+    value: "Tax cash",
+    actionLabel: "Review tax exposure",
+    size: "sm",
+    metric: "€96k",
+    delta: "Next filing",
+    deltaDirection: "flat",
+    status: "On track",
+    trend: [36, 38, 41, 43, 44, 46, 47],
+    icon: CircleDollarSign,
+  },
+  {
+    id: "connector-impact-forecast",
+    title: "Connector impact forecast",
+    category: "prediction",
+    summary: "Forecasts which business metrics will lose confidence if a stale source is not refreshed.",
+    detail: "This makes data freshness actionable by linking failed or delayed syncs to affected cash, AP, AR, and P&L numbers.",
+    dataSources: ["sync_run", "sync_cursor", "raw_object", "mart.v_data_freshness"],
+    value: "Confidence",
+    actionLabel: "Fix impacted feeds",
+    size: "lg",
+    metric: "€481k",
+    delta: "AP confidence at risk",
+    deltaDirection: "down",
+    status: "Alert",
+    trend: [88, 84, 79, 72, 66, 58, 49],
+    icon: RefreshCcw,
+  },
+  {
     id: "abnormal-journal-amounts",
     title: "Abnormal journal amount detection",
     category: "anomaly",
@@ -437,16 +601,42 @@ const INSIGHT_OPTIONS: InsightOption[] = [
 ];
 
 const DEFAULT_VISIBLE_IDS = INSIGHT_OPTIONS.map((item) => item.id);
+const DEFAULT_SIZE_BY_ID: Partial<Record<string, CardSize>> = {};
+const CARD_SIZE_OPTIONS: CardSize[] = ["sm", "md", "lg"];
 
 function getStorageKey(tenantId: string) {
   return `solon-insights-layout:${tenantId}`;
 }
 
+function isCardSize(value: unknown): value is CardSize {
+  return value === "sm" || value === "md" || value === "lg";
+}
+
+function getDefaultTenantState(): TenantState {
+  return { visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [], sizeById: DEFAULT_SIZE_BY_ID };
+}
+
+function normalizeTenantState(value?: Partial<TenantState>): TenantState {
+  const visibleIds = Array.isArray(value?.visibleIds)
+    ? value.visibleIds.filter((id) => DEFAULT_VISIBLE_IDS.includes(id))
+    : DEFAULT_VISIBLE_IDS;
+  const dedupedVisibleIds = Array.from(new Set(visibleIds));
+  const sizeEntries = Object.entries(value?.sizeById ?? {}).filter(
+    ([id, size]) => DEFAULT_VISIBLE_IDS.includes(id) && isCardSize(size),
+  ) as [string, CardSize][];
+
+  return {
+    visibleIds: dedupedVisibleIds.length > 0 ? dedupedVisibleIds : DEFAULT_VISIBLE_IDS,
+    expandedIds: Array.isArray(value?.expandedIds)
+      ? value.expandedIds.filter((id) => dedupedVisibleIds.includes(id))
+      : [],
+    sizeById: Object.fromEntries(sizeEntries),
+  };
+}
+
 function getInitialTenantState(): Record<string, TenantState> {
   if (typeof window === "undefined") {
-    return Object.fromEntries(
-      TENANTS.map((tenant) => [tenant.id, { visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [] }]),
-    );
+    return Object.fromEntries(TENANTS.map((tenant) => [tenant.id, getDefaultTenantState()]));
   }
 
   return Object.fromEntries(
@@ -454,27 +644,14 @@ function getInitialTenantState(): Record<string, TenantState> {
       const storedValue = window.localStorage.getItem(getStorageKey(tenant.id));
 
       if (!storedValue) {
-        return [tenant.id, { visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [] }];
+        return [tenant.id, getDefaultTenantState()];
       }
 
       try {
         const parsed = JSON.parse(storedValue) as Partial<TenantState>;
-        const visibleIds = Array.isArray(parsed.visibleIds)
-          ? parsed.visibleIds.filter((id) => DEFAULT_VISIBLE_IDS.includes(id))
-          : DEFAULT_VISIBLE_IDS;
-        const expandedIds = Array.isArray(parsed.expandedIds)
-          ? parsed.expandedIds.filter((id) => visibleIds.includes(id))
-          : [];
-
-        return [
-          tenant.id,
-          {
-            visibleIds: visibleIds.length > 0 ? visibleIds : DEFAULT_VISIBLE_IDS,
-            expandedIds,
-          },
-        ];
+        return [tenant.id, normalizeTenantState(parsed)];
       } catch {
-        return [tenant.id, { visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [] }];
+        return [tenant.id, getDefaultTenantState()];
       }
     }),
   );
@@ -626,20 +803,14 @@ function getSegmentColor(index: number) {
   ][index % 5];
 }
 
-function getPeriodLabels(length: number) {
-  if (length === 7) {
-    return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-  }
-
-  return Array.from({ length }, (_, index) => `P${index + 1}`);
-}
-
 export function InsightsDashboard() {
   const [selectedTenantId, setSelectedTenantId] = useState(TENANTS[0].id);
   const [tenantState, setTenantState] = useState<Record<string, TenantState>>(getInitialTenantState);
   const [isSelectorOpen, setIsSelectorOpen] = useState(true);
   const [typeFilters, setTypeFilters] = useState<TypeFilter[]>([]);
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [dropTargetCardId, setDropTargetCardId] = useState<string | null>(null);
 
   useEffect(() => {
     for (const [tenantId, state] of Object.entries(tenantState)) {
@@ -650,15 +821,20 @@ export function InsightsDashboard() {
   const activeTenantState = tenantState[selectedTenantId] ?? {
     visibleIds: DEFAULT_VISIBLE_IDS,
     expandedIds: [],
+    sizeById: DEFAULT_SIZE_BY_ID,
   };
 
   const configuredCards = useMemo(() => {
-    const order = new Map(INSIGHT_OPTIONS.map((item, index) => [item.id, index]));
+    const cardsById = new Map(INSIGHT_OPTIONS.map((item) => [item.id, item]));
 
-    return INSIGHT_OPTIONS.filter((item) => activeTenantState.visibleIds.includes(item.id)).sort(
-      (left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0),
-    );
-  }, [activeTenantState.visibleIds]);
+    return activeTenantState.visibleIds
+      .map((id) => cardsById.get(id))
+      .filter((item): item is InsightOption => Boolean(item))
+      .map((item) => ({
+        ...item,
+        size: activeTenantState.sizeById[item.id] ?? item.size,
+      }));
+  }, [activeTenantState.sizeById, activeTenantState.visibleIds]);
 
   const visibleCards = useMemo(() => {
     return configuredCards.filter((item) => {
@@ -698,7 +874,7 @@ export function InsightsDashboard() {
   function updateTenantState(updater: (current: TenantState) => TenantState) {
     startTransition(() => {
       setTenantState((current) => {
-        const existing = current[selectedTenantId] ?? { visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [] };
+        const existing = current[selectedTenantId] ?? getDefaultTenantState();
 
         return {
           ...current,
@@ -721,8 +897,60 @@ export function InsightsDashboard() {
         : [...current.visibleIds, cardId];
       const expandedIds = current.expandedIds.filter((id) => visibleIds.includes(id));
 
-      return { visibleIds, expandedIds };
+      return { ...current, visibleIds, expandedIds };
     });
+  }
+
+  function moveCardTo(sourceCardId: string, targetCardId: string) {
+    updateTenantState((current) => {
+      if (sourceCardId === targetCardId) {
+        return current;
+      }
+
+      const sourceIndex = current.visibleIds.indexOf(sourceCardId);
+      const targetIndex = current.visibleIds.indexOf(targetCardId);
+
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return current;
+      }
+
+      const visibleIds = [...current.visibleIds];
+      const [card] = visibleIds.splice(sourceIndex, 1);
+      visibleIds.splice(targetIndex, 0, card);
+
+      return { ...current, visibleIds };
+    });
+  }
+
+  function updateCardSize(cardId: string, size: CardSize) {
+    updateTenantState((current) => ({
+      ...current,
+      sizeById: {
+        ...current.sizeById,
+        [cardId]: size,
+      },
+    }));
+  }
+
+  function startCardResize(cardId: string, initialSize: CardSize, startX: number, startY: number) {
+    const initialIndex = CARD_SIZE_OPTIONS.indexOf(initialSize);
+
+    function handlePointerMove(event: PointerEvent) {
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+      const dragDistance = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+      const steps = Math.round(dragDistance / 120);
+      const nextIndex = Math.min(Math.max(initialIndex + steps, 0), CARD_SIZE_OPTIONS.length - 1);
+      updateCardSize(cardId, CARD_SIZE_OPTIONS[nextIndex]);
+    }
+
+    function stopResize() {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResize);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResize, { once: true });
   }
 
   function toggleExpanded(cardId: string) {
@@ -736,7 +964,7 @@ export function InsightsDashboard() {
   }
 
   function showAll() {
-    updateTenantState(() => ({ visibleIds: DEFAULT_VISIBLE_IDS, expandedIds: [] }));
+    updateTenantState(() => getDefaultTenantState());
   }
 
   function showExecutiveStarter() {
@@ -746,10 +974,17 @@ export function InsightsDashboard() {
         "budget-vs-actual",
         "working-capital",
         "cash-collection-forecast",
+        "liquidity-gap-forecast",
         "budget-overrun-risk",
+        "budget-exhaustion-date",
         "data-freshness",
       ],
-      expandedIds: ["revenue-trend", "working-capital"],
+      expandedIds: ["revenue-trend", "liquidity-gap-forecast"],
+      sizeById: {
+        "revenue-trend": "lg",
+        "liquidity-gap-forecast": "lg",
+        "budget-exhaustion-date": "md",
+      },
     }));
   }
 
@@ -769,7 +1004,9 @@ export function InsightsDashboard() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="gold">{visibleCards.length}/20 active</Badge>
+                  <Badge variant="gold">
+                    {visibleCards.length}/{INSIGHT_OPTIONS.length} active
+                  </Badge>
                   <button
                     type="button"
                     onClick={() => setIsSelectorOpen(false)}
@@ -786,35 +1023,38 @@ export function InsightsDashboard() {
                 const selected = activeTenantState.visibleIds.includes(item.id);
 
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => toggleCardVisibility(item.id)}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-3xl border px-4 py-4 text-left transition",
+                      "rounded-3xl border px-4 py-4 transition",
                       selected
                         ? "border-primary/20 bg-primary/8"
                         : "border-border/70 bg-background/75 hover:bg-background",
                     )}
                   >
-                    <div
-                      className={cn(
-                        "mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-                        selected
-                          ? "border-primary/20 bg-primary text-primary-foreground"
-                          : "border-border/80 bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {selected ? "✓" : <PlusMinusIcon />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold">{item.title}</p>
-                        <Badge variant={getTypeBadgeVariant(item.category)}>{getTypeLabel(item.category)}</Badge>
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleCardVisibility(item.id)}
+                        className={cn(
+                          "mt-1 flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition",
+                          selected
+                            ? "border-primary/20 bg-primary text-primary-foreground"
+                            : "border-border/80 bg-muted text-muted-foreground hover:text-foreground",
+                        )}
+                        aria-label={selected ? `Hide ${item.title}` : `Show ${item.title}`}
+                      >
+                        {selected ? "✓" : <PlusMinusIcon />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold">{item.title}</p>
+                          <Badge variant={getTypeBadgeVariant(item.category)}>{getTypeLabel(item.category)}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.summary}</p>
                       </div>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.summary}</p>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </CardContent>
@@ -825,7 +1065,9 @@ export function InsightsDashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <Badge>{selectedTenant.name}</Badge>
-              <Badge variant="gold">{visibleCards.length}/20 active</Badge>
+              <Badge variant="gold">
+                {visibleCards.length}/{INSIGHT_OPTIONS.length} active
+              </Badge>
               <Badge variant="muted">{counts.prediction} predictions</Badge>
               <Badge variant="muted">{counts.anomaly} anomalies</Badge>
             </div>
@@ -903,7 +1145,7 @@ export function InsightsDashboard() {
                 Focused set
               </Button>
               <Button variant="outline" className="rounded-2xl bg-background/80" onClick={showAll}>
-                Show all 20
+                Show all {INSIGHT_OPTIONS.length}
               </Button>
             </div>
           </div>
@@ -927,20 +1169,79 @@ export function InsightsDashboard() {
               return (
                 <Card
                   key={item.id}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (draggingCardId && draggingCardId !== item.id) {
+                      setDropTargetCardId(item.id);
+                    }
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                      setDropTargetCardId((current) => (current === item.id ? null : current));
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceCardId = event.dataTransfer.getData("text/plain") || draggingCardId;
+
+                    if (sourceCardId) {
+                      moveCardTo(sourceCardId, item.id);
+                    }
+
+                    setDraggingCardId(null);
+                    setDropTargetCardId(null);
+                  }}
                   className={cn(
-                    "flex h-full flex-col overflow-hidden border-white/70 bg-white/82 transition",
+                    "relative flex h-full flex-col overflow-hidden border-white/70 bg-white/82 transition",
+                    draggingCardId === item.id ? "opacity-55" : null,
+                    dropTargetCardId === item.id ? "ring-2 ring-primary/35" : null,
                     getCardSpan(item.size, expanded),
                   )}
                 >
-                  <CardHeader className="p-6">
+                  <CardHeader className="p-5 pb-3 md:p-6 md:pb-3">
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", item.id);
+                            setDraggingCardId(item.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingCardId(null);
+                            setDropTargetCardId(null);
+                          }}
+                          className="mt-0.5 cursor-grab rounded-full border border-border/70 bg-background/80 p-2 text-muted-foreground transition active:cursor-grabbing hover:text-foreground"
+                          aria-label={`Drag ${item.title}`}
+                        >
+                          <GripVertical className="size-4" />
+                        </button>
+                        <div className="min-w-0">
+                          <CardTitle className="truncate text-xl">{item.title}</CardTitle>
+                          <div className="mt-3 flex min-w-0 items-center gap-2 text-muted-foreground">
+                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/80">
+                              <Icon className="size-4 text-primary" />
+                            </span>
+                            <span className="truncate text-sm font-medium">{item.value}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-2xl font-semibold tracking-tight">{item.metric}</p>
+                        <p className={cn("mt-3 text-sm font-medium", getDeltaTone(item.deltaDirection))}>{item.delta}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <div className="flex min-w-0 items-center gap-2">
                         <Badge variant={getTypeBadgeVariant(item.category)}>{getTypeLabel(item.category)}</Badge>
                         <div className={cn("rounded-full border px-3 py-1 text-xs font-medium", getStatusTone(item.status))}>
                           {item.status}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() => toggleCardVisibility(item.id)}
@@ -959,36 +1260,14 @@ export function InsightsDashboard() {
                         </button>
                       </div>
                     </div>
-
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <CardTitle className="text-xl">{item.title}</CardTitle>
-                        <div className="mt-4 flex items-end gap-3">
-                          <p className="text-3xl font-semibold tracking-tight">{item.metric}</p>
-                          <p className={cn("pb-1 text-sm font-medium", getDeltaTone(item.deltaDirection))}>
-                            {item.delta}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                        <Icon className="size-5 text-primary" />
-                      </div>
-                    </div>
                   </CardHeader>
 
-                  <CardContent className="mt-auto space-y-4 p-6 pt-0">
-                    <div className="rounded-3xl border border-border/70 bg-background/80 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">{item.value}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">Range over recent periods</p>
-                        </div>
-                        <p className="max-w-[14rem] text-right text-xs leading-5 text-muted-foreground">{item.summary}</p>
-                      </div>
-                      <div className="mt-4">
-                        <Sparkline values={item.trend} category={item.category} status={item.status} />
-                      </div>
+                  <CardContent className="mt-auto space-y-4 p-5 pt-0 md:p-6 md:pt-0">
+                    <div className="h-[150px] overflow-hidden rounded-2xl border border-border/70 bg-background/70">
+                      <Sparkline values={item.trend} category={item.category} status={item.status} />
                     </div>
+
+                    <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{item.summary}</p>
 
                     {item.segments?.length ? (
                       <div className="rounded-3xl border border-border/70 bg-background/55 p-4">
@@ -1054,6 +1333,18 @@ export function InsightsDashboard() {
                       {item.actionLabel}
                     </Button>
                   </CardContent>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      startCardResize(item.id, item.size, event.clientX, event.clientY);
+                    }}
+                    className="absolute bottom-2 right-2 flex size-8 cursor-nwse-resize items-center justify-center rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm transition hover:text-foreground"
+                    aria-label={`Resize ${item.title}`}
+                  >
+                    <MoveDiagonal2 className="size-4" />
+                  </button>
                 </Card>
               );
             })}
@@ -1079,32 +1370,27 @@ function Sparkline({
   const areaPath = buildAreaPath(points);
   const tone = getChartTone(category, status);
   const summary = summarizeTrend(values);
-  const lastPoint = points.at(-1);
-  const peakPoint = points[values.indexOf(summary.max)];
-  const labels = getPeriodLabels(values.length);
 
   return (
-    <div className={cn("rounded-[1.5rem] border border-border/70 bg-gradient-to-b from-white via-white to-background/70 p-3", tone.glow)}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Current</p>
-          <p className="mt-1 text-base font-semibold">{summary.current}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Step change</p>
-          <p
-            className={cn(
-              "mt-1 text-xs font-semibold",
-              summary.delta > 0 ? "text-emerald-600 dark:text-emerald-300" : summary.delta < 0 ? "text-destructive" : "text-muted-foreground",
-            )}
-          >
-            {getDeltaPrefix(summary.delta)}
-            {summary.delta}
-          </p>
-        </div>
+    <div className={cn("relative h-[150px] bg-gradient-to-b from-white via-white to-background/70", tone.glow)}>
+      <div className="absolute left-4 top-3 z-10">
+        <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Current</p>
+        <p className="mt-1 text-base font-semibold">{summary.current}</p>
+      </div>
+      <div className="absolute right-4 top-3 z-10 text-right">
+        <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Step change</p>
+        <p
+          className={cn(
+            "mt-1 text-xs font-semibold",
+            summary.delta > 0 ? "text-emerald-600 dark:text-emerald-300" : summary.delta < 0 ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {getDeltaPrefix(summary.delta)}
+          {summary.delta}
+        </p>
       </div>
 
-      <svg viewBox="0 0 100 52" className="mt-3 h-24 w-full overflow-visible" style={{ color: tone.color }}>
+      <svg viewBox="0 0 100 52" className="absolute inset-x-0 bottom-0 h-28 w-full overflow-visible" style={{ color: tone.color }}>
         <defs>
           <linearGradient id={`${sparkId}-fill`} x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
@@ -1120,19 +1406,6 @@ function Sparkline({
           </filter>
         </defs>
 
-        {[10, 22, 34].map((y) => (
-          <line
-            key={y}
-            x1="0"
-            y1={y}
-            x2="100"
-            y2={y}
-            stroke="currentColor"
-            strokeOpacity="0.12"
-            strokeDasharray="2.5 3.5"
-          />
-        ))}
-
         <path d={areaPath} fill={`url(#${sparkId}-fill)`} />
         <path
           d={linePath}
@@ -1143,31 +1416,7 @@ function Sparkline({
           strokeLinejoin="round"
           filter={`url(#${sparkId}-glow)`}
         />
-
-        {peakPoint ? (
-          <>
-            <circle cx={peakPoint.x} cy={peakPoint.y} r="4.5" fill="white" stroke="currentColor" strokeWidth="1.6" />
-            <circle cx={peakPoint.x} cy={peakPoint.y} r="1.8" fill="currentColor" />
-          </>
-        ) : null}
-
-        {lastPoint ? (
-          <>
-            <circle cx={lastPoint.x} cy={lastPoint.y} r="5.5" fill="currentColor" fillOpacity="0.12" />
-            <circle cx={lastPoint.x} cy={lastPoint.y} r="2.6" fill="currentColor" stroke="white" strokeWidth="1.5" />
-          </>
-        ) : null}
-
-        <line x1="0" y1="44" x2="100" y2="44" stroke="currentColor" strokeOpacity="0.12" />
       </svg>
-
-      <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        {labels.map((label, index) => (
-          <span key={`${sparkId}-${label}-${index}`} className={cn(index === labels.length - 1 && "font-medium text-foreground")}>
-            {label}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

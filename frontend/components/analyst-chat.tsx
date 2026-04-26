@@ -17,13 +17,15 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChatChartList } from "@/components/chat-chart-sidebar";
+import { ChatChartList, ChatQueryResultList } from "@/components/chat-chart-sidebar";
 import type {
   BackendChatAgentInfo,
   BackendChatArtifact,
   BackendChatCapabilities,
   BackendChatChart,
+  BackendChatQueryResult,
   BackendChatResponse,
+  BackendChatToolCall,
   BackendChatToolInfo,
   BackendConversation,
   BackendConversationListItem,
@@ -62,6 +64,7 @@ const agentDisplayNameById: Record<string, string> = {
 };
 
 const toolDisplayNameById: Record<string, string> = {
+  query_finance_db: "Query finance data",
   render_chart: "Include charts",
 };
 
@@ -117,9 +120,66 @@ function toCharts(conversation: BackendConversation): BackendChatChart[] {
     .map((message) => message.artifact.chart);
 }
 
+function isQueryResult(value: unknown): value is Omit<BackendChatQueryResult, "id" | "sql"> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<BackendChatQueryResult>;
+  return (
+    Array.isArray(candidate.columns) &&
+    Array.isArray(candidate.rows) &&
+    typeof candidate.row_count === "number" &&
+    typeof candidate.max_rows === "number" &&
+    typeof candidate.truncated === "boolean"
+  );
+}
+
+function normalizeQueryResult(
+  value: unknown,
+  id: string,
+  sql?: unknown,
+): BackendChatQueryResult | null {
+  if (!isQueryResult(value)) {
+    return null;
+  }
+
+  return {
+    id,
+    sql: typeof sql === "string" ? sql : null,
+    columns: value.columns,
+    rows: value.rows as BackendChatQueryResult["rows"],
+    row_count: value.row_count,
+    max_rows: value.max_rows,
+    truncated: value.truncated,
+  };
+}
+
+function queryResultsFromToolCalls(toolCalls: BackendChatToolCall[]): BackendChatQueryResult[] {
+  return toolCalls
+    .filter((toolCall) => toolCall.name === "query_finance_db" && toolCall.status === "completed")
+    .map((toolCall) => normalizeQueryResult(toolCall.output, toolCall.id, toolCall.arguments.sql))
+    .filter((result): result is BackendChatQueryResult => Boolean(result));
+}
+
+function toQueryResults(conversation: BackendConversation): BackendChatQueryResult[] {
+  return conversation.messages
+    .filter((message) => message.type === "tool" && message.role === "tool")
+    .map((message) => {
+      try {
+        const payload = JSON.parse(message.message) as { result?: unknown };
+        return normalizeQueryResult(payload.result, String(message.id));
+      } catch {
+        return null;
+      }
+    })
+    .filter((result): result is BackendChatQueryResult => Boolean(result));
+}
+
 export function AnalystChat({ userInitial }: AnalystChatProps) {
   const [messages, setMessages] = useState<ChatBubble[]>([]);
   const [charts, setCharts] = useState<BackendChatChart[]>([]);
+  const [queryResults, setQueryResults] = useState<BackendChatQueryResult[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<BackendConversationListItem[]>([]);
   const [capabilities, setCapabilities] = useState<BackendChatCapabilities | null>(null);
@@ -128,7 +188,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<"conversations" | "charts">("conversations");
+  const [sidebarTab, setSidebarTab] = useState<"conversations" | "results">("conversations");
   const [showChartsScrollTop, setShowChartsScrollTop] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isHistoryPending, startHistoryTransition] = useTransition();
@@ -192,19 +252,20 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
 
   useEffect(() => {
     const element = sidebarScrollContainerRef.current;
-    if (!element || sidebarTab !== "charts") {
+    if (!element || sidebarTab !== "results") {
       setShowChartsScrollTop(false);
       return;
     }
 
     element.scrollTo({ top: 0, behavior: "smooth" });
     setShowChartsScrollTop(false);
-  }, [sidebarTab, charts.length]);
+  }, [sidebarTab, charts.length, queryResults.length]);
 
   function resetConversation() {
     setConversationId(null);
     setMessages([]);
     setCharts([]);
+    setQueryResults([]);
     setInput("");
     setError(null);
     setSelectedTools(selectedAgent.default_tools);
@@ -242,6 +303,12 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
           .filter((artifact) => artifact.type === "chart")
           .map((artifact) => artifact.chart),
       ]);
+      setSidebarTab("results");
+    }
+    const nextQueryResults = queryResultsFromToolCalls(response.tool_calls);
+    if (nextQueryResults.length > 0) {
+      setQueryResults((current) => [...current, ...nextQueryResults]);
+      setSidebarTab("results");
     }
   }
 
@@ -264,6 +331,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
     setConversationId(null);
     setMessages([]);
     setCharts([]);
+    setQueryResults([]);
     setError(null);
   }
 
@@ -284,9 +352,11 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
         const payload = (await response.json()) as BackendConversation;
         const nextMessages = toChatBubbles(payload);
         const nextCharts = toCharts(payload);
+        const nextQueryResults = toQueryResults(payload);
         setConversationId(payload.conversation_id);
         setMessages(nextMessages);
         setCharts(nextCharts);
+        setQueryResults(nextQueryResults);
       } catch (loadError) {
         const detail = loadError instanceof Error ? loadError.message : "Unable to load conversation.";
         setError(detail);
@@ -295,7 +365,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
   }
 
   function handleSidebarScroll() {
-    if (sidebarTab !== "charts") {
+    if (sidebarTab !== "results") {
       return;
     }
 
@@ -417,15 +487,15 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setSidebarTab("charts")}
+                onClick={() => setSidebarTab("results")}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-sm transition",
-                  sidebarTab === "charts"
+                  sidebarTab === "results"
                     ? "border-primary/30 bg-primary/10 text-foreground"
                     : "border-border/60 bg-background/75 text-muted-foreground hover:text-foreground",
                 )}
               >
-                Charts
+                Results
               </button>
             </div>
             <div className="relative mt-3 min-h-0 flex-1">
@@ -471,10 +541,20 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
                     ) : null}
                   </div>
                 ) : (
-                  <ChatChartList charts={charts} />
+                  <div className="space-y-4">
+                    {queryResults.length > 0 ? (
+                      <ChatQueryResultList queryResults={queryResults} />
+                    ) : null}
+                    {charts.length > 0 ? <ChatChartList charts={charts} /> : null}
+                    {queryResults.length === 0 && charts.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/70 bg-background/55 px-4 py-6 text-sm text-muted-foreground">
+                        Query results and charts created during the conversation will appear here.
+                      </div>
+                    ) : null}
+                  </div>
                 )}
               </div>
-              {sidebarTab === "charts" && showChartsScrollTop ? (
+              {sidebarTab === "results" && showChartsScrollTop ? (
                 <Button
                   type="button"
                   size="icon-sm"

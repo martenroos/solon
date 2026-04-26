@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.llm import (
+    FINANCE_WAREHOUSE_QUERY_GUIDE,
     ChatTool,
     LLMMessage,
     LLMProvider,
@@ -231,6 +232,13 @@ class ChatOrchestrator:
         final_model: str | None = None
         context = ToolExecutionContext(user=user, metadata=request.metadata)
         system_prompt = request.system_prompt or self._settings.llm_system_prompt
+        if any(tool.name == "query_finance_db" for tool in active_tools):
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                f"{FINANCE_WAREHOUSE_QUERY_GUIDE}\n\n"
+                "When using query_finance_db, inspect the returned rows before answering. "
+                "If the result is empty, say that the query returned no matching rows and adjust once if a clear better query is available."
+            )
         if any(tool.name == "render_chart" for tool in active_tools):
             system_prompt = (
                 f"{system_prompt}\n\n"
@@ -436,8 +444,14 @@ class ChatOrchestrator:
         failed_calls = [call for call in executed_tool_calls if call.status == "failed"]
         if failed_calls:
             latest_error = failed_calls[-1].error or "Tool execution failed."
+            latest_tool_name = failed_calls[-1].name
+            if latest_tool_name == "query_finance_db":
+                return (
+                    "I could not complete the database query workflow. "
+                    f"The latest tool error was: {latest_error}"
+                )
             return (
-                "I could not complete the chart generation request. "
+                "I could not complete the tool workflow. "
                 f"The latest tool error was: {latest_error}"
             )
         return (

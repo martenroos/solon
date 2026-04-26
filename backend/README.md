@@ -40,6 +40,7 @@ LLM_SYSTEM_PROMPT="You are Solon Analyst, a finance-focused assistant."
 LLM_REQUEST_TIMEOUT_SECONDS=60
 LLM_MAX_OUTPUT_TOKENS=1200
 LLM_MAX_TOOL_ROUND_TRIPS=4
+LLM_DATABASE_URL=postgresql+asyncpg://solon_llm_readonly:change-me-readonly@localhost:5432/solon
 ```
 
 Supported aliases:
@@ -62,6 +63,16 @@ To call chat routes from the frontend, send:
 
 - `X-Internal-API-Key`
 - `X-User-Email`
+
+### LLM database access
+
+The finance database query tool uses `LLM_DATABASE_URL`, not the normal app `DATABASE_URL`. Configure it with a dedicated read-only Postgres role:
+
+```bash
+python -m app.scripts.setup_llm_readonly_role --password change-me-readonly
+```
+
+The script grants read access to `mart`, selected finance tables in `core`, and selected sync metadata in `meta`. The role is configured with `default_transaction_read_only`, a short statement timeout, and no access to auth or chat tables.
 
 ## Migrations
 
@@ -88,3 +99,13 @@ The first migration intentionally ships a trimmed v1:
 - initial marts for trial balance, P&L, budget vs actual, AR/AP aging, and freshness
 
 This is designed so Exact and AFAS can both map into the same warehouse without making Exact-specific tables the source of truth.
+
+### Demo finance seed data
+
+After running migrations, populate the warehouse with realistic demo data:
+
+```bash
+python -m app.scripts.seed_finance_demo
+```
+
+The seed resets and recreates the `SOLON-DEMO` company by default. It inserts a chart of accounts, counterparties, org units, journals, tax codes, sales and purchase invoices, journal entries, open AR/AP snapshots, budgets, raw payloads, and sync metadata. Use `--year YYYY` to seed another fiscal year.

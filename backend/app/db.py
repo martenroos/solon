@@ -18,6 +18,16 @@ class Base(DeclarativeBase):
 settings = get_settings()
 engine: AsyncEngine = create_async_engine(settings.database_url, future=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+llm_engine: AsyncEngine | None = (
+    create_async_engine(settings.llm_database_url, future=True)
+    if settings.llm_database_url
+    else None
+)
+LLMSessionLocal = (
+    async_sessionmaker(llm_engine, expire_on_commit=False, class_=AsyncSession)
+    if llm_engine is not None
+    else None
+)
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:
