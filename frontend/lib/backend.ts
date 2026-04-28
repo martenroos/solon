@@ -133,6 +133,84 @@ export type BackendConversationListResponse = {
   conversations: BackendConversationListItem[];
 };
 
+export type BackendFinanceKpi = {
+  label: string;
+  value: string;
+  delta: string;
+  status: string;
+  trend: number[];
+};
+
+export type BackendFinancePriority = {
+  title: string;
+  detail: string;
+  severity: string;
+};
+
+export type BackendFinanceRevenueMarginPoint = {
+  label: string;
+  revenue: number;
+  margin: number;
+};
+
+export type BackendFinanceAgingPoint = {
+  label: string;
+  ar: number;
+  ap: number;
+};
+
+export type BackendFinanceCashForecastPoint = {
+  label: string;
+  inflow: number;
+  outflow: number;
+};
+
+export type BackendFinanceDashboard = {
+  priorities: BackendFinancePriority[];
+  kpis: BackendFinanceKpi[];
+  revenueMarginSeries: BackendFinanceRevenueMarginPoint[];
+  agingSeries: BackendFinanceAgingPoint[];
+  cashForecastSeries: BackendFinanceCashForecastPoint[];
+  actions: string[];
+  confidence: {
+    lastSync: string;
+    health: string;
+    coverage: string;
+    confidence: string;
+  };
+  briefing: {
+    summary: string;
+    changed: string;
+    needsAttention: string;
+    improving: string;
+    next: string;
+  };
+};
+
+export type BackendFinanceInsightCard = {
+  id: string;
+  metric: string;
+  delta: string;
+  deltaDirection: "up" | "down" | "flat";
+  status: "On track" | "Watch" | "Alert";
+  trend: number[];
+  segments?: { label: string; value: number; tone: string }[] | null;
+  runId?: string | null;
+  computedAt?: string | null;
+  modelName?: string | null;
+  modelVersion?: string | null;
+  confidence?: number | null;
+  explanation?: string | null;
+  evidence?: Record<string, unknown> | null;
+};
+
+export type BackendFinanceOverview = {
+  generatedAt: string;
+  companyName?: string | null;
+  dashboard: BackendFinanceDashboard;
+  insightCards: BackendFinanceInsightCard[];
+};
+
 function getBackendConfig() {
   return {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8000",
@@ -142,6 +220,41 @@ function getBackendConfig() {
       process.env.FRONTEND_USER_AUTH_SECRET ??
       "change-me-user-auth",
   };
+}
+
+export async function getFinanceOverview(user: {
+  email: string;
+  provider?: string | null;
+}): Promise<BackendFinanceOverview> {
+  const { backendUrl, internalApiKey, userAuthSecret } = getBackendConfig();
+  const { createBackendUserAuthToken } = await import("@/lib/backend-user-auth");
+
+  if (!internalApiKey) {
+    throw new Error("Missing BACKEND_INTERNAL_API_KEY.");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${backendUrl}/api/v1/finance/overview`, {
+      headers: {
+        "X-Internal-API-Key": internalApiKey,
+        "X-User-Auth": createBackendUserAuthToken({
+          email: user.email,
+          provider: user.provider,
+          secret: userAuthSecret,
+        }),
+      },
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(`Finance backend is unavailable at ${backendUrl}.`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch finance overview (${response.status}).`);
+  }
+
+  return response.json() as Promise<BackendFinanceOverview>;
 }
 
 export async function getBackendUser(email: string): Promise<BackendUser | null> {

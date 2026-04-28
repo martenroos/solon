@@ -20,7 +20,6 @@ import {
   Landmark,
   LayoutGrid,
   LineChart,
-  MoveDiagonal2,
   RefreshCcw,
   ReceiptText,
   ScanSearch,
@@ -36,10 +35,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { BackendFinanceInsightCard } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 
 type InsightType = "insight" | "prediction" | "anomaly";
-type CardSize = "sm" | "md" | "lg";
+type CardSize = "sm" | "lg";
 
 type InsightOption = {
   id: string;
@@ -58,6 +58,13 @@ type InsightOption = {
   trend: number[];
   segments?: { label: string; value: number; tone: string }[];
   icon: ComponentType<{ className?: string }>;
+  runId?: string | null;
+  computedAt?: string | null;
+  modelName?: string | null;
+  modelVersion?: string | null;
+  confidence?: number | null;
+  explanation?: string | null;
+  evidence?: Record<string, unknown> | null;
 };
 
 type TenantOption = {
@@ -108,7 +115,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_ledger_account"],
     value: "Margin",
     actionLabel: "Inspect margin mix",
-    size: "md",
+    size: "sm",
     metric: "41.8%",
     delta: "-1.4 pts",
     deltaDirection: "down",
@@ -125,7 +132,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_org_unit", "dim_ledger_account"],
     value: "Burn",
     actionLabel: "Review departments",
-    size: "md",
+    size: "sm",
     metric: "€918k",
     delta: "+6.1% vs plan",
     deltaDirection: "up",
@@ -142,7 +149,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["mart.v_trial_balance_by_period"],
     value: "Control",
     actionLabel: "Open account movement",
-    size: "md",
+    size: "sm",
     metric: "17 accounts",
     delta: "3 material shifts",
     deltaDirection: "flat",
@@ -220,7 +227,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_open_item_snapshot", "mart.v_ar_aging_latest"],
     value: "AR",
     actionLabel: "Review receivables aging",
-    size: "md",
+    size: "sm",
     metric: "€612k",
     delta: "19% overdue",
     deltaDirection: "down",
@@ -241,7 +248,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_open_item_snapshot", "mart.v_ap_aging_latest"],
     value: "AP",
     actionLabel: "Review payables aging",
-    size: "md",
+    size: "sm",
     metric: "€481k",
     delta: "12% overdue",
     deltaDirection: "flat",
@@ -296,7 +303,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_purchase_invoice", "fact_open_item_snapshot", "dim_counterparty"],
     value: "Forecast",
     actionLabel: "Forecast cash-out",
-    size: "md",
+    size: "sm",
     metric: "€746k",
     delta: "Next 30 days",
     deltaDirection: "flat",
@@ -313,7 +320,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_date"],
     value: "Projection",
     actionLabel: "Project revenue",
-    size: "md",
+    size: "sm",
     metric: "€3.06M",
     delta: "+7.4% projected",
     deltaDirection: "up",
@@ -330,7 +337,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_org_unit"],
     value: "Projection",
     actionLabel: "Project spend",
-    size: "md",
+    size: "sm",
     metric: "€1.42M",
     delta: "+5.2% projected",
     deltaDirection: "down",
@@ -403,7 +410,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["dim_counterparty", "fact_open_item_snapshot", "fact_sales_invoice"],
     value: "Credit",
     actionLabel: "Review credit holds",
-    size: "md",
+    size: "sm",
     metric: "6 customers",
     delta: "At breach risk",
     deltaDirection: "down",
@@ -420,7 +427,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_open_item_snapshot", "fact_sales_invoice", "dim_counterparty"],
     value: "Loss risk",
     actionLabel: "Escalate collections",
-    size: "md",
+    size: "sm",
     metric: "€84k",
     delta: "Elevated risk",
     deltaDirection: "down",
@@ -454,7 +461,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_budget", "fact_journal_entry_line", "dim_org_unit", "dim_ledger_account"],
     value: "Runway",
     actionLabel: "Move or pause spend",
-    size: "md",
+    size: "sm",
     metric: "May 18",
     delta: "Earliest exhaustion",
     deltaDirection: "down",
@@ -471,7 +478,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_budget", "fact_journal_entry_line", "dim_date", "dim_org_unit"],
     value: "Close risk",
     actionLabel: "Pre-close review",
-    size: "md",
+    size: "sm",
     metric: "€173k",
     delta: "Projected miss",
     deltaDirection: "down",
@@ -488,7 +495,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_org_unit"],
     value: "Margin risk",
     actionLabel: "Review cost drivers",
-    size: "md",
+    size: "sm",
     metric: "-2.1 pts",
     delta: "Projected next period",
     deltaDirection: "down",
@@ -556,7 +563,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry", "fact_journal_entry_line", "fact_sales_invoice", "fact_purchase_invoice"],
     value: "Duplicates",
     actionLabel: "Review duplicates",
-    size: "md",
+    size: "sm",
     metric: "8 matches",
     delta: "2 new today",
     deltaDirection: "down",
@@ -573,7 +580,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     dataSources: ["fact_journal_entry_line", "dim_journal", "dim_tax_code", "dim_document_type"],
     value: "Novelty",
     actionLabel: "Review unusual combinations",
-    size: "md",
+    size: "sm",
     metric: "11 combos",
     delta: "Rare this week",
     deltaDirection: "down",
@@ -602,14 +609,22 @@ const INSIGHT_OPTIONS: InsightOption[] = [
 
 const DEFAULT_VISIBLE_IDS = INSIGHT_OPTIONS.map((item) => item.id);
 const DEFAULT_SIZE_BY_ID: Partial<Record<string, CardSize>> = {};
-const CARD_SIZE_OPTIONS: CardSize[] = ["sm", "md", "lg"];
+const CARD_SIZE_OPTIONS: CardSize[] = ["sm", "lg"];
 
 function getStorageKey(tenantId: string) {
   return `solon-insights-layout:${tenantId}`;
 }
 
-function isCardSize(value: unknown): value is CardSize {
-  return value === "sm" || value === "md" || value === "lg";
+function normalizeCardSize(value: unknown): CardSize | null {
+  if (value === "sm" || value === "lg") {
+    return value;
+  }
+
+  if (value === "md") {
+    return "sm";
+  }
+
+  return null;
 }
 
 function getDefaultTenantState(): TenantState {
@@ -621,9 +636,14 @@ function normalizeTenantState(value?: Partial<TenantState>): TenantState {
     ? value.visibleIds.filter((id) => DEFAULT_VISIBLE_IDS.includes(id))
     : DEFAULT_VISIBLE_IDS;
   const dedupedVisibleIds = Array.from(new Set(visibleIds));
-  const sizeEntries = Object.entries(value?.sizeById ?? {}).filter(
-    ([id, size]) => DEFAULT_VISIBLE_IDS.includes(id) && isCardSize(size),
-  ) as [string, CardSize][];
+  const sizeEntries = Object.entries(value?.sizeById ?? {}).flatMap(([id, size]) => {
+    if (!DEFAULT_VISIBLE_IDS.includes(id)) {
+      return [];
+    }
+
+    const normalizedSize = normalizeCardSize(size);
+    return normalizedSize ? ([[id, normalizedSize]] as [string, CardSize][]) : [];
+  });
 
   return {
     visibleIds: dedupedVisibleIds.length > 0 ? dedupedVisibleIds : DEFAULT_VISIBLE_IDS,
@@ -669,17 +689,9 @@ function getTypeBadgeVariant(category: InsightType): "default" | "gold" | "muted
   return "default";
 }
 
-function getCardSpan(size: CardSize, expanded: boolean) {
-  if (expanded) {
-    return "md:col-span-2 xl:col-span-4";
-  }
-
+function getCardSpan(size: CardSize) {
   if (size === "lg") {
     return "md:col-span-2 xl:col-span-2";
-  }
-
-  if (size === "md") {
-    return "md:col-span-1 xl:col-span-2";
   }
 
   return "md:col-span-1 xl:col-span-1";
@@ -769,26 +781,6 @@ function buildAreaPath(points: { x: number; y: number }[]) {
   return `${linePath} L ${points[points.length - 1]?.x ?? 100} 44 L ${points[0]?.x ?? 0} 44 Z`;
 }
 
-function summarizeTrend(values: number[]) {
-  const current = values.at(-1) ?? 0;
-  const previous = values.at(-2) ?? current;
-  const baseline = values.at(0) ?? current;
-
-  return {
-    current,
-    min: Math.min(...values),
-    max: Math.max(...values),
-    delta: current - previous,
-    net: current - baseline,
-  };
-}
-
-function getDeltaPrefix(value: number) {
-  if (value > 0) return "+";
-  if (value < 0) return "";
-  return "";
-}
-
 function getSegmentTone(index: number) {
   return ["bg-chart-2", "bg-chart-5", "bg-chart-1", "bg-chart-4", "bg-chart-3"][index % 5];
 }
@@ -803,14 +795,15 @@ function getSegmentColor(index: number) {
   ][index % 5];
 }
 
-export function InsightsDashboard() {
+export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsightCard[] }) {
   const [selectedTenantId, setSelectedTenantId] = useState(TENANTS[0].id);
   const [tenantState, setTenantState] = useState<Record<string, TenantState>>(getInitialTenantState);
-  const [isSelectorOpen, setIsSelectorOpen] = useState(true);
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [typeFilters, setTypeFilters] = useState<TypeFilter[]>([]);
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dropTargetCardId, setDropTargetCardId] = useState<string | null>(null);
+  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
 
   useEffect(() => {
     for (const [tenantId, state] of Object.entries(tenantState)) {
@@ -818,14 +811,64 @@ export function InsightsDashboard() {
     }
   }, [tenantState]);
 
+  useEffect(() => {
+    if (!selectedInsightId) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedInsightId(null);
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedInsightId]);
+
   const activeTenantState = tenantState[selectedTenantId] ?? {
     visibleIds: DEFAULT_VISIBLE_IDS,
     expandedIds: [],
     sizeById: DEFAULT_SIZE_BY_ID,
   };
 
+  const insightOptions = useMemo(() => {
+    const overridesById = new Map(cards.map((item) => [item.id, item]));
+
+    return INSIGHT_OPTIONS.map((item) => {
+      const override = overridesById.get(item.id);
+
+      if (!override) {
+        return item;
+      }
+
+      return {
+        ...item,
+        metric: override.metric,
+        delta: override.delta,
+        deltaDirection: override.deltaDirection,
+        status: override.status,
+        trend: override.trend,
+        segments: override.segments ?? item.segments,
+        runId: override.runId,
+        computedAt: override.computedAt,
+        modelName: override.modelName,
+        modelVersion: override.modelVersion,
+        confidence: override.confidence,
+        explanation: override.explanation,
+        evidence: override.evidence,
+      };
+    });
+  }, [cards]);
+
   const configuredCards = useMemo(() => {
-    const cardsById = new Map(INSIGHT_OPTIONS.map((item) => [item.id, item]));
+    const cardsById = new Map(insightOptions.map((item) => [item.id, item]));
 
     return activeTenantState.visibleIds
       .map((id) => cardsById.get(id))
@@ -834,7 +877,7 @@ export function InsightsDashboard() {
         ...item,
         size: activeTenantState.sizeById[item.id] ?? item.size,
       }));
-  }, [activeTenantState.sizeById, activeTenantState.visibleIds]);
+  }, [activeTenantState.sizeById, activeTenantState.visibleIds, insightOptions]);
 
   const visibleCards = useMemo(() => {
     return configuredCards.filter((item) => {
@@ -853,6 +896,14 @@ export function InsightsDashboard() {
       { insight: 0, prediction: 0, anomaly: 0 },
     );
   }, [configuredCards]);
+
+  const selectedInsight = useMemo(() => {
+    if (!selectedInsightId) {
+      return null;
+    }
+
+    return configuredCards.find((item) => item.id === selectedInsightId) ?? null;
+  }, [configuredCards, selectedInsightId]);
 
   function toggleTypeFilter(filter: TypeFilter) {
     setTypeFilters((current) =>
@@ -932,37 +983,6 @@ export function InsightsDashboard() {
     }));
   }
 
-  function startCardResize(cardId: string, initialSize: CardSize, startX: number, startY: number) {
-    const initialIndex = CARD_SIZE_OPTIONS.indexOf(initialSize);
-
-    function handlePointerMove(event: PointerEvent) {
-      const deltaX = event.clientX - startX;
-      const deltaY = event.clientY - startY;
-      const dragDistance = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
-      const steps = Math.round(dragDistance / 120);
-      const nextIndex = Math.min(Math.max(initialIndex + steps, 0), CARD_SIZE_OPTIONS.length - 1);
-      updateCardSize(cardId, CARD_SIZE_OPTIONS[nextIndex]);
-    }
-
-    function stopResize() {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopResize);
-    }
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopResize, { once: true });
-  }
-
-  function toggleExpanded(cardId: string) {
-    updateTenantState((current) => {
-      const expandedIds = current.expandedIds.includes(cardId)
-        ? current.expandedIds.filter((id) => id !== cardId)
-        : [...current.expandedIds, cardId];
-
-      return { ...current, expandedIds };
-    });
-  }
-
   function showAll() {
     updateTenantState(() => getDefaultTenantState());
   }
@@ -979,11 +999,11 @@ export function InsightsDashboard() {
         "budget-exhaustion-date",
         "data-freshness",
       ],
-      expandedIds: ["revenue-trend", "liquidity-gap-forecast"],
+      expandedIds: [],
       sizeById: {
         "revenue-trend": "lg",
         "liquidity-gap-forecast": "lg",
-        "budget-exhaustion-date": "md",
+        "budget-exhaustion-date": "sm",
       },
     }));
   }
@@ -1005,7 +1025,7 @@ export function InsightsDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="gold">
-                    {visibleCards.length}/{INSIGHT_OPTIONS.length} active
+                    {visibleCards.length}/{insightOptions.length} active
                   </Badge>
                   <button
                     type="button"
@@ -1019,7 +1039,7 @@ export function InsightsDashboard() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0 md:p-6 md:pt-0">
-              {INSIGHT_OPTIONS.map((item) => {
+              {insightOptions.map((item) => {
                 const selected = activeTenantState.visibleIds.includes(item.id);
 
                 return (
@@ -1066,7 +1086,7 @@ export function InsightsDashboard() {
             <div className="flex flex-wrap items-center gap-3">
               <Badge>{selectedTenant.name}</Badge>
               <Badge variant="gold">
-                {visibleCards.length}/{INSIGHT_OPTIONS.length} active
+                {visibleCards.length}/{insightOptions.length} active
               </Badge>
               <Badge variant="muted">{counts.prediction} predictions</Badge>
               <Badge variant="muted">{counts.anomaly} anomalies</Badge>
@@ -1145,7 +1165,7 @@ export function InsightsDashboard() {
                 Focused set
               </Button>
               <Button variant="outline" className="rounded-2xl bg-background/80" onClick={showAll}>
-                Show all {INSIGHT_OPTIONS.length}
+                Show all {insightOptions.length}
               </Button>
             </div>
           </div>
@@ -1161,10 +1181,9 @@ export function InsightsDashboard() {
             </Card>
           ) : null}
 
-          <div className="grid auto-rows-[minmax(250px,_auto)] gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid auto-rows-[minmax(210px,_auto)] gap-4 md:grid-cols-2 xl:grid-cols-4">
             {visibleCards.map((item) => {
               const Icon = item.icon;
-              const expanded = activeTenantState.expandedIds.includes(item.id);
 
               return (
                 <Card
@@ -1192,13 +1211,13 @@ export function InsightsDashboard() {
                     setDropTargetCardId(null);
                   }}
                   className={cn(
-                    "relative flex h-full flex-col overflow-hidden border-white/70 bg-white/82 transition",
+                    "group relative flex h-full flex-col overflow-hidden border-white/70 bg-white/82 transition-all duration-200 ease-out",
                     draggingCardId === item.id ? "opacity-55" : null,
                     dropTargetCardId === item.id ? "ring-2 ring-primary/35" : null,
-                    getCardSpan(item.size, expanded),
+                    getCardSpan(item.size),
                   )}
                 >
-                  <CardHeader className="p-5 pb-3 md:p-6 md:pb-3">
+                  <CardHeader className="p-5 pb-2">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex min-w-0 items-start gap-3">
                         <button
@@ -1213,144 +1232,77 @@ export function InsightsDashboard() {
                             setDraggingCardId(null);
                             setDropTargetCardId(null);
                           }}
-                          className="mt-0.5 cursor-grab rounded-full border border-border/70 bg-background/80 p-2 text-muted-foreground transition active:cursor-grabbing hover:text-foreground"
+                          className="mt-0.5 cursor-grab rounded-full border border-border/60 bg-background/65 p-1.5 text-muted-foreground opacity-50 transition active:cursor-grabbing group-hover:opacity-100 hover:text-foreground"
                           aria-label={`Drag ${item.title}`}
                         >
-                          <GripVertical className="size-4" />
+                          <GripVertical className="size-3.5" />
                         </button>
                         <div className="min-w-0">
-                          <CardTitle className="truncate text-xl">{item.title}</CardTitle>
-                          <div className="mt-3 flex min-w-0 items-center gap-2 text-muted-foreground">
-                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/80">
-                              <Icon className="size-4 text-primary" />
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/65">
+                              <Icon className="size-3.5 text-primary" />
                             </span>
-                            <span className="truncate text-sm font-medium">{item.value}</span>
+                            <CardTitle className="truncate text-base">{item.title}</CardTitle>
+                          </div>
+                          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>{getTypeLabel(item.category)}</span>
+                            <span className="text-border">/</span>
+                            <span>{item.value}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-2xl font-semibold tracking-tight">{item.metric}</p>
-                        <p className={cn("mt-3 text-sm font-medium", getDeltaTone(item.deltaDirection))}>{item.delta}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <Badge variant={getTypeBadgeVariant(item.category)}>{getTypeLabel(item.category)}</Badge>
-                        <div className={cn("rounded-full border px-3 py-1 text-xs font-medium", getStatusTone(item.status))}>
-                          {item.status}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-1.5 opacity-55 transition group-hover:opacity-100">
+                        <CardSizeControl
+                          value={item.size}
+                          onChange={(size) => updateCardSize(item.id, size)}
+                          label={`Set size for ${item.title}`}
+                        />
                         <button
                           type="button"
                           onClick={() => toggleCardVisibility(item.id)}
-                          className="rounded-full border border-border/70 bg-background/80 p-2 text-muted-foreground transition hover:text-foreground"
+                          className="rounded-full border border-border/60 bg-background/65 p-1.5 text-muted-foreground transition hover:text-foreground"
                           aria-label={`Hide ${item.title}`}
                         >
-                          <EyeOff className="size-4" />
+                          <EyeOff className="size-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => toggleExpanded(item.id)}
-                          className="rounded-full border border-border/70 bg-background/80 p-2 text-muted-foreground transition hover:text-foreground"
-                          aria-label={expanded ? `Collapse ${item.title}` : `Expand ${item.title}`}
+                          onClick={() => setSelectedInsightId(item.id)}
+                          className="rounded-full border border-border/60 bg-background/65 p-1.5 text-muted-foreground transition hover:text-foreground"
+                          aria-label={`Open details for ${item.title}`}
                         >
-                          {expanded ? <X className="size-4" /> : <Expand className="size-4" />}
+                          <Expand className="size-3.5" />
                         </button>
                       </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="mt-auto space-y-4 p-5 pt-0 md:p-6 md:pt-0">
-                    <div className="h-[150px] overflow-hidden rounded-2xl border border-border/70 bg-background/70">
+                  <CardContent className="mt-auto space-y-4 p-5 pt-0">
+                    <div className="flex items-end justify-between gap-4 border-t border-border/60 pt-4">
+                      <div className="min-w-0">
+                        <p className="text-2xl font-semibold tracking-tight">{item.metric}</p>
+                        <p className={cn("mt-1 truncate text-sm font-medium", getDeltaTone(item.deltaDirection))}>{item.delta}</p>
+                      </div>
+                      <div className={cn("shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium", getStatusTone(item.status))}>
+                        {item.status}
+                      </div>
+                    </div>
+
+                    <div className="h-[76px] overflow-hidden rounded-xl border border-border/60 bg-background/45">
                       <Sparkline values={item.trend} category={item.category} status={item.status} />
                     </div>
 
                     <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{item.summary}</p>
-
-                    {item.segments?.length ? (
-                      <div className="rounded-3xl border border-border/70 bg-background/55 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Composition</p>
-                          <p className="text-xs text-muted-foreground">{item.metric}</p>
-                        </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-[132px_1fr] md:items-center">
-                          <RadialBreakdown segments={item.segments} />
-                          <div className="grid gap-2">
-                          {item.segments.map((segment, index) => (
-                            <div
-                              key={segment.label}
-                              className="flex items-center justify-between rounded-2xl border border-border/70 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
-                            >
-                              <span className="flex items-center gap-2">
-                                <span className={cn("size-2.5 rounded-full", segment.tone ?? getSegmentTone(index))} />
-                                <span>{segment.label}</span>
-                              </span>
-                              <span className="font-semibold" style={{ color: getSegmentColor(index) }}>
-                                {segment.value}%
-                              </span>
-                            </div>
-                          ))}
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {expanded ? (
-                      <div className="rounded-3xl border border-dashed border-border/70 bg-background/55 p-4">
-                        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">What this means</p>
-                        <p className="mt-2 text-sm leading-6 text-foreground">{item.detail}</p>
-                      </div>
-                    ) : null}
-
-                    {expanded ? (
-                      <div className="rounded-3xl border border-dashed border-border/70 bg-background/55 p-4">
-                        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Warehouse inputs</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {item.dataSources.map((source) => (
-                            <span
-                              key={source}
-                              className="rounded-full border border-border/70 bg-card px-3 py-1 text-xs text-muted-foreground"
-                            >
-                              {source}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="grid grid-cols-3 gap-2">
-                      {item.trend.slice(-3).map((value, index) => (
-                        <div key={`${item.id}-${index}`} className="rounded-2xl border border-border/70 bg-background/70 p-3">
-                          <p className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">P-{2 - index}</p>
-                          <p className="mt-2 text-sm font-semibold">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button variant="outline" className="w-full rounded-2xl bg-background/80">
-                      {item.actionLabel}
-                    </Button>
                   </CardContent>
-                  <button
-                    type="button"
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      startCardResize(item.id, item.size, event.clientX, event.clientY);
-                    }}
-                    className="absolute bottom-2 right-2 flex size-8 cursor-nwse-resize items-center justify-center rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm transition hover:text-foreground"
-                    aria-label={`Resize ${item.title}`}
-                  >
-                    <MoveDiagonal2 className="size-4" />
-                  </button>
                 </Card>
               );
             })}
           </div>
         </div>
       </section>
+      {selectedInsight ? (
+        <InsightDetailModal item={selectedInsight} onClose={() => setSelectedInsightId(null)} />
+      ) : null}
     </div>
   );
 }
@@ -1359,46 +1311,30 @@ function Sparkline({
   values,
   category,
   status,
+  className,
 }: {
   values: number[];
   category: InsightType;
   status: InsightOption["status"];
+  className?: string;
 }) {
   const sparkId = useId();
   const points = buildSparklineCoordinates(values);
   const linePath = buildSparklinePath(points);
   const areaPath = buildAreaPath(points);
   const tone = getChartTone(category, status);
-  const summary = summarizeTrend(values);
 
   return (
-    <div className={cn("relative h-[150px] bg-gradient-to-b from-white via-white to-background/70", tone.glow)}>
-      <div className="absolute left-4 top-3 z-10">
-        <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Current</p>
-        <p className="mt-1 text-base font-semibold">{summary.current}</p>
-      </div>
-      <div className="absolute right-4 top-3 z-10 text-right">
-        <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">Step change</p>
-        <p
-          className={cn(
-            "mt-1 text-xs font-semibold",
-            summary.delta > 0 ? "text-emerald-600 dark:text-emerald-300" : summary.delta < 0 ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {getDeltaPrefix(summary.delta)}
-          {summary.delta}
-        </p>
-      </div>
-
-      <svg viewBox="0 0 100 52" className="absolute inset-x-0 bottom-0 h-28 w-full overflow-visible" style={{ color: tone.color }}>
+    <div className={cn("relative h-[76px] bg-gradient-to-b from-white/75 via-white/35 to-background/45", tone.glow, className)}>
+      <svg viewBox="0 0 100 52" className="absolute inset-x-0 bottom-0 h-full w-full overflow-visible" style={{ color: tone.color }}>
         <defs>
           <linearGradient id={`${sparkId}-fill`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
-            <stop offset="70%" stopColor="currentColor" stopOpacity="0.04" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.12" />
+            <stop offset="72%" stopColor="currentColor" stopOpacity="0.04" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
           <filter id={`${sparkId}-glow`} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feGaussianBlur stdDeviation="1.6" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -1411,7 +1347,7 @@ function Sparkline({
           d={linePath}
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
           filter={`url(#${sparkId}-glow)`}
@@ -1419,6 +1355,374 @@ function Sparkline({
       </svg>
     </div>
   );
+}
+
+function CardSizeControl({
+  value,
+  onChange,
+  label,
+}: {
+  value: CardSize;
+  onChange: (size: CardSize) => void;
+  label: string;
+}) {
+  return (
+    <div
+      className="flex items-center rounded-full border border-border/60 bg-background/65 p-0.5"
+      role="group"
+      aria-label={label}
+    >
+      {CARD_SIZE_OPTIONS.map((size) => {
+        const active = size === value;
+
+        return (
+          <button
+            key={size}
+            type="button"
+            onClick={() => onChange(size)}
+            className={cn(
+              "flex size-[18px] items-center justify-center rounded-full text-muted-foreground transition",
+              active ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-background hover:text-foreground",
+            )}
+            aria-label={`Set ${getCardSizeLabel(size)} size`}
+            aria-pressed={active}
+            title={getCardSizeLabel(size)}
+          >
+            <SizeGlyph size={size} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function getCardSizeLabel(size: CardSize) {
+  if (size === "sm") return "Compact";
+  return "Wide";
+}
+
+function SizeGlyph({ size }: { size: CardSize }) {
+  const activeBlocks = size === "sm" ? 1 : 3;
+
+  return (
+    <span className="flex items-end gap-0.5" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className={cn(
+            "block w-[3px] rounded-[1px] bg-current transition-opacity",
+            index === 0 ? "h-[5px]" : index === 1 ? "h-2" : "h-3",
+            index < activeBlocks ? "opacity-100" : "opacity-25",
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+function InsightDetailModal({ item, onClose }: { item: InsightOption; onClose: () => void }) {
+  const Icon = item.icon;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 px-4 py-6 backdrop-blur-sm sm:py-10"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`insight-detail-${item.id}`}
+      onMouseDown={onClose}
+    >
+      <Card
+        className="w-full max-w-4xl overflow-hidden border-white/75 bg-white/95 shadow-[0_28px_120px_rgba(11,18,32,0.24)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="border-b border-border/70 p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/80">
+                  <Icon className="size-4 text-primary" />
+                </span>
+                <div className="min-w-0">
+                  <CardTitle id={`insight-detail-${item.id}`} className="truncate text-xl">
+                    {item.title}
+                  </CardTitle>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span>{getTypeLabel(item.category)}</span>
+                    <span className="text-border">/</span>
+                    <span>{item.value}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-border/70 bg-background/80 p-2 text-muted-foreground transition hover:text-foreground"
+              aria-label="Close insight details"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-5 p-5 md:p-6">
+          <div className="grid gap-4 md:grid-cols-[1fr_220px] md:items-start">
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/55">
+              <Sparkline values={item.trend} category={item.category} status={item.status} className="h-[132px]" />
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/55 p-4">
+              <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Current</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight">{item.metric}</p>
+              <p className={cn("mt-2 text-sm font-medium", getDeltaTone(item.deltaDirection))}>{item.delta}</p>
+              <div className={cn("mt-4 inline-flex rounded-full border px-2.5 py-1 text-xs font-medium", getStatusTone(item.status))}>
+                {item.status}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4">
+            <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">What this means</p>
+            <p className="mt-2 text-sm leading-6 text-foreground">{item.explanation ?? item.detail}</p>
+          </div>
+
+          {item.segments?.length ? <SegmentBreakdown item={item} /> : null}
+
+          {hasAnalyticsEvidence(item) ? <AnalystEvidenceCard item={item} /> : null}
+
+          <div className="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4">
+            <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Warehouse inputs</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {item.dataSources.map((source) => (
+                <span
+                  key={source}
+                  className="rounded-full border border-border/70 bg-card px-3 py-1 text-xs text-muted-foreground"
+                >
+                  {source}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="outline" className="rounded-2xl bg-background/80">
+              {item.actionLabel}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SegmentBreakdown({ item }: { item: InsightOption }) {
+  if (!item.segments?.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/55 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Composition</p>
+        <p className="text-xs text-muted-foreground">{item.metric}</p>
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-[132px_1fr] md:items-center">
+        <RadialBreakdown segments={item.segments} />
+        <div className="grid gap-2">
+          {item.segments.map((segment, index) => (
+            <div
+              key={segment.label}
+              className="flex items-center justify-between rounded-2xl border border-border/70 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+            >
+              <span className="flex items-center gap-2">
+                <span className={cn("size-2.5 rounded-full", segment.tone ?? getSegmentTone(index))} />
+                <span>{segment.label}</span>
+              </span>
+              <span className="font-semibold" style={{ color: getSegmentColor(index) }}>
+                {segment.value}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function hasAnalyticsEvidence(item: InsightOption) {
+  return Boolean(
+    item.confidence ||
+      item.computedAt ||
+      item.modelName ||
+      item.evidence?.analyst_logic ||
+      getEvidenceTables(item.evidence).length,
+  );
+}
+
+function AnalystEvidenceCard({ item }: { item: InsightOption }) {
+  const evidenceTables = getEvidenceTables(item.evidence);
+
+  return (
+    <div className="rounded-3xl border border-border/70 bg-background/55 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Analyst evidence</p>
+          {typeof item.evidence?.analyst_logic === "string" ? (
+            <p className="mt-2 text-sm leading-6 text-foreground">{item.evidence.analyst_logic}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {item.confidence ? <Badge variant="muted">{Math.round(item.confidence * 100)}% confidence</Badge> : null}
+          {item.modelVersion ? <Badge variant="muted">{item.modelVersion}</Badge> : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {item.modelName ? <EvidenceStat label="Model" value={formatModelName(item.modelName)} /> : null}
+        {item.computedAt ? <EvidenceStat label="Computed" value={formatDateTime(item.computedAt)} /> : null}
+        {item.runId ? <EvidenceStat label="Run" value={item.runId.slice(0, 8)} /> : null}
+      </div>
+
+      {evidenceTables.length ? (
+        <div className="mt-4 space-y-4">
+          {evidenceTables.map((table) => (
+            <EvidenceTable key={table.label} label={table.label} rows={table.rows} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function EvidenceStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+      <p className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">{label}</p>
+      <p className="mt-2 truncate text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function EvidenceTable({ label, rows }: { label: string; rows: Record<string, unknown>[] }) {
+  const columns = getEvidenceColumns(rows);
+
+  if (!rows.length || !columns.length) {
+    return (
+      <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
+        <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">{label}</p>
+        <p className="mt-2 text-sm text-muted-foreground">No exceptions found in the latest analytics run.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/80">
+      <div className="border-b border-border/70 px-4 py-3">
+        <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">{label}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-left text-xs">
+          <thead className="bg-muted/50 text-muted-foreground">
+            <tr>
+              {columns.map((column) => (
+                <th key={column} className="px-4 py-3 font-medium">
+                  {formatColumnLabel(column)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 5).map((row, rowIndex) => (
+              <tr key={rowIndex} className="border-t border-border/60">
+                {columns.map((column) => (
+                  <td key={column} className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">
+                    {formatEvidenceValue(row[column])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function getEvidenceTables(evidence?: Record<string, unknown> | null) {
+  if (!evidence) return [];
+
+  return [
+    { label: "Top revenue drivers", rows: evidence.top_drivers },
+    { label: "Cost drivers", rows: evidence.top_cost_drivers },
+    { label: "Top budget variances", rows: evidence.top_variances },
+    { label: "Customer aging", rows: evidence.customer_aging },
+    { label: "Duplicate matches", rows: evidence.matches },
+    { label: "Journal outliers", rows: evidence.outliers },
+  ].flatMap((table) => {
+    if (!Array.isArray(table.rows)) return [];
+    return [{ label: table.label, rows: table.rows.filter(isEvidenceRow) }];
+  });
+}
+
+function isEvidenceRow(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function getEvidenceColumns(rows: Record<string, unknown>[]) {
+  const preferred = [
+    "account_code",
+    "account_name",
+    "org_unit_name",
+    "counterparty_name",
+    "source",
+    "invoice_date",
+    "posting_date",
+    "amount_base",
+    "amount_incl_tax_base",
+    "budget_amount_base",
+    "actual_amount_base",
+    "variance_amount_base",
+    "actual_vs_budget_pct",
+    "total_open_amount_base",
+    "current_amount",
+    "overdue_1_30",
+    "overdue_31_60",
+    "overdue_61_90",
+    "overdue_90_plus",
+    "match_count",
+    "document_numbers",
+    "z_score",
+  ];
+  const available = new Set(rows.flatMap((row) => Object.keys(row)));
+  const ordered = preferred.filter((key) => available.has(key));
+  const remaining = [...available].filter((key) => !ordered.includes(key)).sort();
+  return [...ordered, ...remaining].slice(0, 6);
+}
+
+function formatColumnLabel(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function formatEvidenceValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatModelName(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function RadialBreakdown({

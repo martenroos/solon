@@ -109,3 +109,13 @@ python -m app.scripts.seed_finance_demo
 ```
 
 The seed resets and recreates the `SOLON-DEMO` company by default. It inserts a chart of accounts, counterparties, org units, journals, tax codes, sales and purchase invoices, journal entries, open AR/AP snapshots, budgets, raw payloads, and sync metadata. Use `--year YYYY` to seed another fiscal year.
+
+### Finance analytics signals
+
+Dashboard and insights predictions/anomalies are persisted in `mart.analytics_run` and `mart.insight_signal`. Compute them after ingestion or on a scheduler:
+
+```bash
+python -m app.scripts.compute_finance_analytics
+```
+
+The finance API will also refresh stale or missing signals on demand, but production deployments should run the script after warehouse loads so pages read from completed analytics runs.
