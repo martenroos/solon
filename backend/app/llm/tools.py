@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.db import LLMSessionLocal
 from app.models.user import User
-from app.schemas.chat import ChatArtifact, ChatChart, ChatToolInfo
+from app.schemas.chat import ChatArtifact, ChatChart, ChatTask, ChatToolInfo
 
 ToolHandler = Callable[[dict[str, Any], "ToolExecutionContext"], Awaitable[Any]]
 
@@ -199,6 +199,20 @@ async def render_chart_tool(arguments: dict[str, Any], context: ToolExecutionCon
     }
 
 
+async def add_task_to_board_tool(arguments: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+    task = ChatTask.model_validate(arguments)
+    context.emit_artifact(ChatArtifact(type="task", task=task))
+    return {
+        "status": "task_recorded",
+        "task_id": task.id,
+        "task": task.model_dump(mode="json"),
+        "title": task.title,
+        "owner_name": task.owner_name,
+        "priority": task.priority,
+        "task_status": task.status,
+    }
+
+
 def build_tool_registry() -> ToolRegistry:
     return ToolRegistry(
         tools=[
@@ -276,6 +290,53 @@ def build_tool_registry() -> ToolRegistry:
                     "required": ["type", "title", "data"],
                 },
                 handler=render_chart_tool,
+            ),
+            ChatTool(
+                name="add_task_to_board",
+                description=(
+                    "Add a concrete follow-up task to the user's task board when the user asks to capture work, "
+                    "assign an action item, make a follow-up, or when the conversation clearly identifies an execution task. "
+                    "Use concise action-oriented titles. Prefer backlog status unless the user explicitly says work is underway, "
+                    "ready for review, or already complete."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "Optional stable unique ID. Omit this unless one is already available.",
+                        },
+                        "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "description": "A concise action-oriented task title.",
+                        },
+                        "owner_id": {
+                            "type": ["integer", "null"],
+                            "description": "Known numeric owner ID, or null if unknown.",
+                        },
+                        "owner_name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120,
+                            "description": "Assignee display name. Use Unassigned if no owner is clear.",
+                        },
+                        "priority": {
+                            "type": "string",
+                            "enum": ["High", "Medium", "Low"],
+                            "description": "Task priority inferred from urgency and impact.",
+                        },
+                        "status": {
+                            "type": "string",
+                            "enum": ["backlog", "in_progress", "review", "done"],
+                            "description": "Workflow status. Default to backlog unless the user clearly indicates another state.",
+                        },
+                    },
+                    "required": ["title"],
+                },
+                handler=add_task_to_board_tool,
             )
         ]
     )

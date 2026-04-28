@@ -43,6 +43,8 @@ class ChatToolInfo(BaseModel):
 
 
 ChartType = Literal["line", "bar", "area", "pie"]
+TaskStatus = Literal["backlog", "in_progress", "review", "done"]
+TaskPriority = Literal["High", "Medium", "Low"]
 
 
 class ChatChartSeries(BaseModel):
@@ -101,9 +103,27 @@ class ChatChart(BaseModel):
         return self
 
 
+class ChatTask(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    title: str = Field(min_length=1, max_length=160)
+    owner_id: int | None = None
+    owner_name: str = Field(default="Unassigned", min_length=1, max_length=120)
+    priority: TaskPriority = "Medium"
+    status: TaskStatus = "backlog"
+
+
 class ChatArtifact(BaseModel):
-    type: Literal["chart"]
-    chart: ChatChart
+    type: Literal["chart", "task"]
+    chart: ChatChart | None = None
+    task: ChatTask | None = None
+
+    @model_validator(mode="after")
+    def validate_artifact_payload(self) -> "ChatArtifact":
+        if self.type == "chart" and self.chart is None:
+            raise ValueError("Chart artifacts require a chart payload.")
+        if self.type == "task" and self.task is None:
+            raise ValueError("Task artifacts require a task payload.")
+        return self
 
 
 class ChatAgentInfo(BaseModel):

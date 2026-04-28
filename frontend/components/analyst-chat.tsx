@@ -13,6 +13,7 @@ import {
   PanelLeft,
   Plus,
   Sparkles,
+  SquareCheckBig,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +26,13 @@ import type {
   BackendChatChart,
   BackendChatQueryResult,
   BackendChatResponse,
+  BackendChatTask,
   BackendChatToolCall,
   BackendChatToolInfo,
   BackendConversation,
   BackendConversationListItem,
 } from "@/lib/backend";
+import { addTasksToBoard, type Task } from "@/lib/tasks-board";
 import { cn } from "@/lib/utils";
 
 type AnalystChatProps = {
@@ -66,6 +69,7 @@ const agentDisplayNameById: Record<string, string> = {
 const toolDisplayNameById: Record<string, string> = {
   query_finance_db: "Query finance data",
   render_chart: "Include charts",
+  add_task_to_board: "Add tasks",
 };
 
 function toTimestamp() {
@@ -114,10 +118,46 @@ function getToolDisplayName(tool: BackendChatToolInfo) {
 
 function toCharts(conversation: BackendConversation): BackendChatChart[] {
   return conversation.messages
-    .filter((message): message is BackendConversation["messages"][number] & { artifact: BackendChatArtifact } =>
-      message.type === "chart" && Boolean(message.artifact),
+    .filter(
+      (
+        message,
+      ): message is BackendConversation["messages"][number] & {
+        artifact: Extract<BackendChatArtifact, { type: "chart" }>;
+      } => message.type === "chart" && message.artifact?.type === "chart",
     )
     .map((message) => message.artifact.chart);
+}
+
+function toTask(task: BackendChatTask): Task {
+  return {
+    id: task.id,
+    title: task.title,
+    ownerId: task.owner_id ?? null,
+    ownerName: task.owner_name,
+    priority: task.priority,
+    status: task.status,
+  };
+}
+
+function isBackendChatTask(value: unknown): value is BackendChatTask {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<BackendChatTask>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    (typeof candidate.owner_id === "number" || candidate.owner_id === null || candidate.owner_id === undefined) &&
+    typeof candidate.owner_name === "string" &&
+    (candidate.priority === "High" || candidate.priority === "Medium" || candidate.priority === "Low") &&
+    (
+      candidate.status === "backlog" ||
+      candidate.status === "in_progress" ||
+      candidate.status === "review" ||
+      candidate.status === "done"
+    )
+  );
 }
 
 function isQueryResult(value: unknown): value is Omit<BackendChatQueryResult, "id" | "sql"> {
@@ -162,6 +202,21 @@ function queryResultsFromToolCalls(toolCalls: BackendChatToolCall[]): BackendCha
     .filter((result): result is BackendChatQueryResult => Boolean(result));
 }
 
+function tasksFromToolCalls(toolCalls: BackendChatToolCall[]): Task[] {
+  return toolCalls
+    .filter((toolCall) => toolCall.name === "add_task_to_board" && toolCall.status === "completed")
+    .map((toolCall) => {
+      const output = toolCall.output;
+      if (!output || typeof output !== "object") {
+        return null;
+      }
+
+      const task = (output as { task?: unknown }).task;
+      return isBackendChatTask(task) ? toTask(task) : null;
+    })
+    .filter((task): task is Task => Boolean(task));
+}
+
 function toQueryResults(conversation: BackendConversation): BackendChatQueryResult[] {
   return conversation.messages
     .filter((message) => message.type === "tool" && message.role === "tool")
@@ -180,6 +235,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
   const [messages, setMessages] = useState<ChatBubble[]>([]);
   const [charts, setCharts] = useState<BackendChatChart[]>([]);
   const [queryResults, setQueryResults] = useState<BackendChatQueryResult[]>([]);
+  const [addedTaskTitles, setAddedTaskTitles] = useState<string[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<BackendConversationListItem[]>([]);
   const [capabilities, setCapabilities] = useState<BackendChatCapabilities | null>(null);
@@ -259,13 +315,14 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
 
     element.scrollTo({ top: 0, behavior: "smooth" });
     setShowChartsScrollTop(false);
-  }, [sidebarTab, charts.length, queryResults.length]);
+  }, [sidebarTab, charts.length, queryResults.length, addedTaskTitles.length]);
 
   function resetConversation() {
     setConversationId(null);
     setMessages([]);
     setCharts([]);
     setQueryResults([]);
+    setAddedTaskTitles([]);
     setInput("");
     setError(null);
     setSelectedTools(selectedAgent.default_tools);
@@ -296,14 +353,31 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
         model: response.model,
       },
     ]);
-    if (response.artifacts.length > 0) {
-      setCharts((current) => [
-        ...current,
-        ...response.artifacts
-          .filter((artifact) => artifact.type === "chart")
-          .map((artifact) => artifact.chart),
-      ]);
+    const taskArtifacts = response.artifacts.filter(
+      (artifact): artifact is Extract<BackendChatArtifact, { type: "task" }> => artifact.type === "task",
+    );
+    const tasksById = new Map<string, Task>();
+    for (const task of [
+      ...taskArtifacts.map((artifact) => toTask(artifact.task)),
+      ...tasksFromToolCalls(response.tool_calls),
+    ]) {
+      tasksById.set(task.id, task);
+    }
+    const addedTasks = Array.from(tasksById.values());
+    if (addedTasks.length > 0) {
+      addTasksToBoard(window.localStorage, addedTasks);
+      setAddedTaskTitles((current) => [...addedTasks.map((task) => task.title), ...current].slice(0, 6));
       setSidebarTab("results");
+    }
+
+    if (response.artifacts.length > 0) {
+      const chartArtifacts = response.artifacts.filter(
+        (artifact): artifact is Extract<BackendChatArtifact, { type: "chart" }> => artifact.type === "chart",
+      );
+      if (chartArtifacts.length > 0) {
+        setCharts((current) => [...current, ...chartArtifacts.map((artifact) => artifact.chart)]);
+        setSidebarTab("results");
+      }
     }
     const nextQueryResults = queryResultsFromToolCalls(response.tool_calls);
     if (nextQueryResults.length > 0) {
@@ -332,6 +406,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
     setMessages([]);
     setCharts([]);
     setQueryResults([]);
+    setAddedTaskTitles([]);
     setError(null);
   }
 
@@ -357,6 +432,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
         setMessages(nextMessages);
         setCharts(nextCharts);
         setQueryResults(nextQueryResults);
+        setAddedTaskTitles([]);
       } catch (loadError) {
         const detail = loadError instanceof Error ? loadError.message : "Unable to load conversation.";
         setError(detail);
@@ -542,13 +618,28 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    {addedTaskTitles.length > 0 ? (
+                      <div className="rounded-2xl border border-primary/20 bg-primary/7 px-4 py-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <SquareCheckBig className="size-4 text-primary" />
+                          Added to task board
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {addedTaskTitles.map((taskTitle) => (
+                            <p key={taskTitle} className="text-sm leading-5 text-muted-foreground">
+                              {taskTitle}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {queryResults.length > 0 ? (
                       <ChatQueryResultList queryResults={queryResults} />
                     ) : null}
                     {charts.length > 0 ? <ChatChartList charts={charts} /> : null}
-                    {queryResults.length === 0 && charts.length === 0 ? (
+                    {queryResults.length === 0 && charts.length === 0 && addedTaskTitles.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/70 bg-background/55 px-4 py-6 text-sm text-muted-foreground">
-                        Query results and charts created during the conversation will appear here.
+                        Query results, charts, and tasks created during the conversation will appear here.
                       </div>
                     ) : null}
                   </div>

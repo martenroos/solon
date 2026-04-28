@@ -73,10 +73,28 @@ export type BackendChatChart = {
   stacked: boolean;
 };
 
-export type BackendChatArtifact = {
+export type BackendChatTask = {
+  id: string;
+  title: string;
+  owner_id?: number | null;
+  owner_name: string;
+  priority: "High" | "Medium" | "Low";
+  status: "backlog" | "in_progress" | "review" | "done";
+};
+
+export type BackendChatChartArtifact = {
   type: "chart";
   chart: BackendChatChart;
+  task?: null;
 };
+
+export type BackendChatTaskArtifact = {
+  type: "task";
+  task: BackendChatTask;
+  chart?: null;
+};
+
+export type BackendChatArtifact = BackendChatChartArtifact | BackendChatTaskArtifact;
 
 export type BackendChatAgentInfo = {
   id: string;

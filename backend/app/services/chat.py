@@ -254,6 +254,14 @@ class ChatOrchestrator:
                 "- never send empty data arrays\n"
                 "If you do not have concrete chart data, answer normally without calling render_chart."
             )
+        if any(tool.name == "add_task_to_board" for tool in active_tools):
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "When using add_task_to_board, add tasks only for explicit user requests to capture work "
+                "or for clearly actionable follow-ups identified in the conversation. "
+                "Do not add tasks for every answer. Keep task titles concise, start with a verb, "
+                "and use owner_name='Unassigned' when no assignee is clear."
+            )
 
         for _ in range(self._settings.llm_max_tool_round_trips):
             llm_response = await self._provider.generate(
@@ -460,7 +468,7 @@ class ChatOrchestrator:
         )
 
     def _parse_artifact(self, message_type: str, message: str) -> ChatArtifact | None:
-        if message_type != "chart":
+        if message_type not in {"chart", "task"}:
             return None
         try:
             return ChatArtifact.model_validate_json(message)

@@ -39,8 +39,8 @@ def build_chat_agent_registry() -> ChatAgentRegistry:
                 id="analyst",
                 name="Solon Analyst",
                 description="Conversational finance workspace for variance analysis, planning questions, and board-ready explanations.",
-                default_tools=["query_finance_db"],
-                allowed_tools=["query_finance_db", "render_chart"],
+                default_tools=["query_finance_db", "add_task_to_board"],
+                allowed_tools=["query_finance_db", "render_chart", "add_task_to_board"],
             )
         ]
     )

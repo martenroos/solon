@@ -7,19 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BackendUser } from "@/lib/backend";
+import {
+  initialTasks,
+  readTasksBoard,
+  TASKS_BOARD_UPDATED_EVENT,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+  writeTasksBoard,
+} from "@/lib/tasks-board";
 import { cn } from "@/lib/utils";
-
-type TaskStatus = "backlog" | "in_progress" | "review" | "done";
-type TaskPriority = "High" | "Medium" | "Low";
-
-type Task = {
-  id: string;
-  title: string;
-  ownerId: number | null;
-  ownerName: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-};
 
 type Column = {
   id: TaskStatus;
@@ -27,49 +24,11 @@ type Column = {
   description: string;
 };
 
-const STORAGE_KEY = "solon-tasks-board-v1";
-const LEGACY_STORAGE_KEY = "solon-kanban-board-v1";
-
 const columns: Column[] = [
   { id: "backlog", title: "Backlog", description: "Captured work that still needs sequencing." },
   { id: "in_progress", title: "In Progress", description: "Tasks actively being worked right now." },
   { id: "review", title: "Review", description: "Work awaiting validation, sign-off, or QA." },
   { id: "done", title: "Done", description: "Completed tasks with a clear outcome." },
-];
-
-const initialTasks: Task[] = [
-  {
-    id: "task-1",
-    title: "Define KPI tiles for the weekly finance view",
-    ownerId: null,
-    ownerName: "Marten",
-    priority: "High",
-    status: "in_progress",
-  },
-  {
-    id: "task-2",
-    title: "Review invoice sync exceptions from North Holding",
-    ownerId: null,
-    ownerName: "Finance Ops",
-    priority: "High",
-    status: "review",
-  },
-  {
-    id: "task-3",
-    title: "Draft board-ready commentary for margin compression",
-    ownerId: null,
-    ownerName: "Analyst",
-    priority: "Medium",
-    status: "backlog",
-  },
-  {
-    id: "task-4",
-    title: "Publish investor export template",
-    ownerId: null,
-    ownerName: "Ops",
-    priority: "Low",
-    status: "done",
-  },
 ];
 
 function getPriorityTone(priority: TaskPriority) {
@@ -97,7 +56,7 @@ export function TasksBoard({
   const [priority, setPriority] = React.useState<TaskPriority>("Medium");
   const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null);
   const [activeColumn, setActiveColumn] = React.useState<TaskStatus | null>(null);
-  const hydratedRef = React.useRef(false);
+  const [isHydrated, setIsHydrated] = React.useState(false);
   const tenantUsers = React.useMemo(() => {
     const currentDomain = currentUser.email.split("@")[1]?.toLowerCase() ?? "";
     const scopedUsers = workspaceUsers.filter((user) => {
@@ -117,32 +76,30 @@ export function TasksBoard({
   }, [currentUser, workspaceUsers]);
 
   React.useEffect(() => {
-    const savedBoard = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
-
-    if (!savedBoard) {
-      hydratedRef.current = true;
-      return;
-    }
-
-    try {
-      const parsedBoard = JSON.parse(savedBoard) as Task[];
-      if (Array.isArray(parsedBoard)) {
-        setTasks(parsedBoard);
-      }
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
-
-    hydratedRef.current = true;
+    setTasks(readTasksBoard(window.localStorage));
+    setIsHydrated(true);
   }, []);
 
   React.useEffect(() => {
-    if (!hydratedRef.current) {
+    if (!isHydrated) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  }, [tasks]);
+    writeTasksBoard(window.localStorage, tasks);
+  }, [isHydrated, tasks]);
+
+  React.useEffect(() => {
+    function syncTasksFromStorage() {
+      setTasks(readTasksBoard(window.localStorage));
+    }
+
+    window.addEventListener(TASKS_BOARD_UPDATED_EVENT, syncTasksFromStorage);
+    window.addEventListener("storage", syncTasksFromStorage);
+    return () => {
+      window.removeEventListener(TASKS_BOARD_UPDATED_EVENT, syncTasksFromStorage);
+      window.removeEventListener("storage", syncTasksFromStorage);
+    };
+  }, []);
 
   const taskCount = tasks.length;
   const completedCount = tasks.filter((task) => task.status === "done").length;
