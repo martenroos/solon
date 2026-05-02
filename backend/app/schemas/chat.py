@@ -64,6 +64,7 @@ class ChatChart(BaseModel):
     label_key: str | None = None
     value_key: str | None = None
     stacked: bool = False
+    source_query_sql: str | None = None
 
     @model_validator(mode="after")
     def validate_chart_shape(self) -> "ChatChart":

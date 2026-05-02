@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -52,3 +52,31 @@ class ChatMessageRecord(Base):
     )
 
     conversation: Mapped[ChatConversation] = relationship(back_populates="messages")
+
+
+class SavedChartWidget(Base):
+    __tablename__ = "saved_chart_widgets"
+    __table_args__ = (
+        UniqueConstraint("user_id", "chart_id", "surface", name="uq_saved_chart_widgets_user_chart_surface"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    surface: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    chart_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chart_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_query_sql: Mapped[str] = mapped_column(Text, nullable=False)
+    chart_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

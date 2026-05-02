@@ -18,9 +18,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { LayoutDashboard } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { BackendChatChart, BackendChatQueryResult } from "@/lib/backend";
+import type { BackendChatChart, BackendChatQueryResult, BackendSavedChartSurface } from "@/lib/backend";
 
 const chartColors = [
   "var(--color-chart-1)",
@@ -32,6 +34,10 @@ const chartColors = [
 
 type ChatChartSidebarProps = {
   charts: BackendChatChart[];
+  onAddToSurface?: (chart: BackendChatChart, surface: BackendSavedChartSurface) => void;
+  getSourceQuerySql?: (chart: BackendChatChart) => string | null;
+  pendingChartAction?: string | null;
+  addedChartAction?: string | null;
 };
 
 type ChatQueryResultListProps = {
@@ -315,7 +321,13 @@ function renderChart(chart: BackendChatChart) {
   );
 }
 
-export function ChatChartList({ charts }: ChatChartSidebarProps) {
+export function ChatChartList({
+  charts,
+  onAddToSurface,
+  getSourceQuerySql,
+  pendingChartAction,
+  addedChartAction,
+}: ChatChartSidebarProps) {
   const orderedCharts = [...charts].reverse();
 
   return (
@@ -333,6 +345,37 @@ export function ChatChartList({ charts }: ChatChartSidebarProps) {
           </div>
           {renderChart(chart)}
           {renderChartValues(chart)}
+          {onAddToSurface ? (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["dashboard"] as const).map((surface) => {
+                  const actionKey = `${chart.id}:${surface}`;
+                  const sourceQuerySql = getSourceQuerySql?.(chart) ?? chart.source_query_sql ?? null;
+                  const disabled = !sourceQuerySql || pendingChartAction === actionKey;
+                  return (
+                    <Button
+                      key={surface}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      disabled={disabled}
+                      title={sourceQuerySql ? undefined : "This chart does not include a source SQL query."}
+                      onClick={() => onAddToSurface({ ...chart, source_query_sql: sourceQuerySql }, surface)}
+                    >
+                      <LayoutDashboard className="size-4" />
+                      {addedChartAction === actionKey ? "Added" : `Add to ${surface}`}
+                    </Button>
+                  );
+                })}
+              </div>
+              {!(getSourceQuerySql?.(chart) ?? chart.source_query_sql) ? (
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  This chart needs a source query before it can be saved as live data.
+                </p>
+              ) : null}
+            </>
+          ) : null}
         </div>
       ))}
       {orderedCharts.length === 0 ? (

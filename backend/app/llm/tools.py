@@ -27,6 +27,7 @@ class ToolExecutionContext:
     user: User
     metadata: dict[str, Any]
     emitted_messages: list[ToolEmittedMessage] = field(default_factory=list)
+    latest_finance_query_sql: str | None = None
 
     def emit_artifact(self, artifact: ChatArtifact) -> None:
         self.emitted_messages.append(
@@ -109,6 +110,15 @@ Finance warehouse query guide:
   - core.fact_budget(company_id, scenario_name, ledger_account_id, org_unit_id, date_key, fiscal_year_number, fiscal_period_number, amount_base)
 - For demo data, filter with core.dim_company.company_code = 'SOLON-DEMO' unless the user asks otherwise.
 - P&L signs follow ledger signed amounts: revenue is usually negative and expenses positive. When presenting revenue or profit, explain the sign convention or invert signs in SQL with clear aliases.
+- Avoid joining customer_id or supplier_id to unrelated integer columns. In this warehouse, customer_id, supplier_id, counterparty_id, ledger_account_id, company_id, and org_unit_id are UUIDs. Join them only to their matching UUID key columns.
+- For top overdue receivables, use mart.v_ar_aging_latest directly. Example:
+  SELECT counterparty_name AS account, ROUND((overdue_1_30 + overdue_31_60 + overdue_61_90 + overdue_90_plus)::numeric, 2) AS overdue_amount
+  FROM mart.v_ar_aging_latest
+  WHERE company_id = (SELECT company_id FROM core.dim_company WHERE company_code = 'SOLON-DEMO')
+  ORDER BY overdue_amount DESC
+  LIMIT 5
+- For top overdue payables, use mart.v_ap_aging_latest directly with the same overdue_amount expression.
+- For cash-risk charts, prefer labels like account or risk and numeric aliases like overdue_amount, total_open_amount, inflow, or outflow.
 - Always aggregate before returning large detail sets. Keep query result sets small and focused.
 """.strip()
 
@@ -156,15 +166,9 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-async def query_finance_db_tool(arguments: dict[str, Any], _context: ToolExecutionContext) -> dict[str, Any]:
-    sql = _validate_read_only_sql(str(arguments.get("sql") or ""))
-    max_rows = arguments.get("max_rows", 100)
-    try:
-        max_rows = int(max_rows)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("max_rows must be an integer.") from exc
-    max_rows = max(1, min(max_rows, 200))
-
+async def run_finance_query(sql: str, max_rows: int = 100) -> dict[str, Any]:
+    sql = _validate_read_only_sql(sql)
+    max_rows = max(1, min(int(max_rows), 200))
     limited_sql = f"SELECT * FROM ({sql}) AS llm_finance_query LIMIT :max_rows"
     if LLMSessionLocal is None:
         raise RuntimeError("LLM_DATABASE_URL is not configured for the read-only finance query tool.")
@@ -188,8 +192,32 @@ async def query_finance_db_tool(arguments: dict[str, Any], _context: ToolExecuti
     }
 
 
+async def query_finance_db_tool(arguments: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+    sql = _validate_read_only_sql(str(arguments.get("sql") or ""))
+    max_rows = arguments.get("max_rows", 100)
+    try:
+        max_rows = int(max_rows)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("max_rows must be an integer.") from exc
+    result = await run_finance_query(sql, max_rows)
+    context.latest_finance_query_sql = sql
+    return result
+
+
 async def render_chart_tool(arguments: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
-    chart = ChatChart.model_validate(arguments)
+    chart_arguments = dict(arguments)
+    source_query_sql = str(chart_arguments.get("source_query_sql") or context.latest_finance_query_sql or "").strip()
+    if "data" not in chart_arguments and source_query_sql:
+        query_result = await run_finance_query(source_query_sql, 200)
+        rows = query_result["rows"]
+        if not rows:
+            raise ValueError("The chart source query returned no rows.")
+        chart_arguments["data"] = rows
+        chart_arguments["source_query_sql"] = source_query_sql
+
+    chart = ChatChart.model_validate(chart_arguments)
+    if chart.source_query_sql is None and source_query_sql:
+        chart = chart.model_copy(update={"source_query_sql": source_query_sql})
     context.emit_artifact(ChatArtifact(type="chart", chart=chart))
     return {
         "status": "chart_recorded",
@@ -248,7 +276,7 @@ def build_tool_registry() -> ToolRegistry:
                     "Create a chart artifact for the frontend sidebar. "
                     "Use this when a visual helps explain the answer. "
                     "Supported chart types: line, bar, area, pie. "
-                    "Always include non-empty data. "
+                    "Include non-empty data, or include source_query_sql so the tool can fetch the chart data from the finance warehouse. "
                     "For line/bar/area charts include x_key and at least one series, and every data row must include numeric values for each series key. "
                     "For pie charts include label_key and value_key, and every data row must include a label plus a numeric value."
                 ),
@@ -286,8 +314,12 @@ def build_tool_registry() -> ToolRegistry:
                         "label_key": {"type": "string"},
                         "value_key": {"type": "string"},
                         "stacked": {"type": "boolean"},
+                        "source_query_sql": {
+                            "type": "string",
+                            "description": "The read-only finance SQL query used to produce this chart data. Include the exact query_finance_db SQL when available.",
+                        },
                     },
-                    "required": ["type", "title", "data"],
+                    "required": ["type", "title"],
                 },
                 handler=render_chart_tool,
             ),

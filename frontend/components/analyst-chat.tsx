@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowUp,
-  BrainCircuit,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ChartColumnBig,
   LoaderCircle,
   MessageSquareText,
@@ -16,7 +14,6 @@ import {
   SquareCheckBig,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChatChartList, ChatQueryResultList } from "@/components/chat-chart-sidebar";
 import type {
@@ -31,6 +28,7 @@ import type {
   BackendChatToolInfo,
   BackendConversation,
   BackendConversationListItem,
+  BackendSavedChartSurface,
 } from "@/lib/backend";
 import { addTasksToBoard, type Task } from "@/lib/tasks-board";
 import { cn } from "@/lib/utils";
@@ -69,7 +67,6 @@ const agentDisplayNameById: Record<string, string> = {
 const toolDisplayNameById: Record<string, string> = {
   query_finance_db: "Query finance data",
   render_chart: "Include charts",
-  add_task_to_board: "Add tasks",
 };
 
 function toTimestamp() {
@@ -244,8 +241,11 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isToolMenuOpen, setIsToolMenuOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<"conversations" | "results">("conversations");
   const [showChartsScrollTop, setShowChartsScrollTop] = useState(false);
+  const [pendingChartAction, setPendingChartAction] = useState<string | null>(null);
+  const [addedChartAction, setAddedChartAction] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isHistoryPending, startHistoryTransition] = useTransition();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -257,6 +257,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
     (capabilities?.available_tools ?? []).map((tool) => [tool.name, tool] satisfies [string, BackendChatToolInfo]),
   );
   const availableToolsForAgent = selectedAgent.allowed_tools
+    .filter((toolName) => toolName !== "add_task_to_board")
     .map((toolName) => availableToolsByName.get(toolName))
     .filter((tool): tool is BackendChatToolInfo => Boolean(tool));
 
@@ -370,16 +371,23 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
       setSidebarTab("results");
     }
 
+    const nextQueryResults = queryResultsFromToolCalls(response.tool_calls);
     if (response.artifacts.length > 0) {
       const chartArtifacts = response.artifacts.filter(
         (artifact): artifact is Extract<BackendChatArtifact, { type: "chart" }> => artifact.type === "chart",
       );
       if (chartArtifacts.length > 0) {
-        setCharts((current) => [...current, ...chartArtifacts.map((artifact) => artifact.chart)]);
+        const fallbackSourceSql = [...nextQueryResults].reverse().find((result) => result.sql)?.sql ?? null;
+        setCharts((current) => [
+          ...current,
+          ...chartArtifacts.map((artifact) => ({
+            ...artifact.chart,
+            source_query_sql: artifact.chart.source_query_sql ?? fallbackSourceSql,
+          })),
+        ]);
         setSidebarTab("results");
       }
     }
-    const nextQueryResults = queryResultsFromToolCalls(response.tool_calls);
     if (nextQueryResults.length > 0) {
       setQueryResults((current) => [...current, ...nextQueryResults]);
       setSidebarTab("results");
@@ -395,19 +403,6 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
         ? current.filter((name) => name !== toolName)
         : [...current, toolName];
     });
-  }
-
-  function handleAgentChange(nextAgentId: string) {
-    const nextAgent =
-      capabilities?.available_agents.find((agent) => agent.id === nextAgentId) ?? FALLBACK_AGENT;
-    setSelectedAgentId(nextAgent.id);
-    setSelectedTools(nextAgent.default_tools);
-    setConversationId(null);
-    setMessages([]);
-    setCharts([]);
-    setQueryResults([]);
-    setAddedTaskTitles([]);
-    setError(null);
   }
 
   function loadConversation(nextConversationId: string) {
@@ -454,8 +449,9 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
     setShowChartsScrollTop(false);
   }
 
-  function submitMessage(content: string) {
+  function submitMessage(content: string, requestTools = selectedTools, displayContent = content) {
     const trimmed = content.trim();
+    const visibleContent = displayContent.trim() || trimmed;
     if (!trimmed || isPending) {
       return;
     }
@@ -463,12 +459,13 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
     const userMessage: ChatBubble = {
       id: crypto.randomUUID(),
       role: "user",
-      content: trimmed,
+      content: visibleContent,
       timestamp: toTimestamp(),
     };
 
     setMessages((current) => [...current, userMessage]);
     setInput("");
+    setIsToolMenuOpen(false);
     setError(null);
 
     startTransition(async () => {
@@ -487,7 +484,7 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
             ],
             conversation_id: conversationId ?? undefined,
             agent: selectedAgent.id,
-            tools: selectedTools,
+            tools: requestTools,
             execution_mode: "single_agent",
             metadata: {
               surface: "analyst-page",
@@ -505,13 +502,69 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
 
         const payload = (await response.json()) as BackendChatResponse;
         appendAssistantMessage(payload);
-        upsertConversationList(payload.conversation_id, deriveConversationTitle(trimmed), payload.message.content);
+        upsertConversationList(payload.conversation_id, deriveConversationTitle(visibleContent), payload.message.content);
       } catch (requestError) {
         const detail =
           requestError instanceof Error ? requestError.message : "Something went wrong.";
         setError(detail);
       }
     });
+  }
+
+  function createTaskFromConversation() {
+    if (messages.length === 0 || isPending) {
+      return;
+    }
+
+    setIsToolMenuOpen(false);
+    submitMessage(
+      "Create exactly one concise task from the latest actionable part of this conversation. If there is no actionable follow-up, say so and do not create a task.",
+      ["add_task_to_board"],
+    );
+  }
+
+  async function addChartToSurface(chart: BackendChatChart, surface: BackendSavedChartSurface) {
+    const sourceQuerySql = getChartSourceQuerySql(chart);
+    const actionKey = `${chart.id}:${surface}`;
+    setPendingChartAction(actionKey);
+    setError(null);
+    if (!sourceQuerySql) {
+      setError("This chart cannot be saved yet because it does not include the SQL query used to build it.");
+      setPendingChartAction(null);
+      return;
+    }
+    try {
+      const response = await fetch("/api/finance/saved-charts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          surface,
+          chart: {
+            ...chart,
+            source_query_sql: sourceQuerySql,
+          },
+          source_query_sql: sourceQuerySql,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({ detail: "Unable to save chart." }))) as {
+          detail?: string;
+        };
+        throw new Error(payload.detail ?? "Unable to save chart.");
+      }
+      setAddedChartAction(actionKey);
+    } catch (saveError) {
+      const detail = saveError instanceof Error ? saveError.message : "Unable to save chart.";
+      setError(detail);
+    } finally {
+      setPendingChartAction(null);
+    }
+  }
+
+  function getChartSourceQuerySql(chart: BackendChatChart) {
+    return chart.source_query_sql ?? [...queryResults].reverse().find((result) => result.sql)?.sql ?? null;
   }
 
   return (
@@ -636,7 +689,15 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
                     {queryResults.length > 0 ? (
                       <ChatQueryResultList queryResults={queryResults} />
                     ) : null}
-                    {charts.length > 0 ? <ChatChartList charts={charts} /> : null}
+                    {charts.length > 0 ? (
+                      <ChatChartList
+                        charts={charts}
+                        onAddToSurface={addChartToSurface}
+                        getSourceQuerySql={getChartSourceQuerySql}
+                        pendingChartAction={pendingChartAction}
+                        addedChartAction={addedChartAction}
+                      />
+                    ) : null}
                     {queryResults.length === 0 && charts.length === 0 && addedTaskTitles.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/70 bg-background/55 px-4 py-6 text-sm text-muted-foreground">
                         Query results, charts, and tasks created during the conversation will appear here.
@@ -674,83 +735,6 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
       </aside>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-card/78 p-4 shadow-[0_22px_60px_rgba(11,18,32,0.1)] backdrop-blur-md sm:p-5">
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-border/70 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <BrainCircuit className="size-4" />
-            </div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">{getAgentDisplayName(selectedAgent)}</p>
-              <Badge variant="muted">Live</Badge>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full md:hidden"
-            onClick={() => setIsSidebarOpen((current) => !current)}
-            aria-label="Toggle previous chats"
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-        </div>
-
-        <div className="mb-3 flex shrink-0 flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-background/70 px-3 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-foreground">Agent</span>
-              <div className="relative min-w-52">
-                <select
-                  value={selectedAgent.id}
-                  onChange={(event) => handleAgentChange(event.target.value)}
-                  disabled={isPending || isHistoryPending}
-                  className="h-11 w-full appearance-none rounded-2xl border border-border/70 bg-background/85 px-3 pr-10 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary/35 focus:bg-background"
-                >
-                  {(capabilities?.available_agents ?? [FALLBACK_AGENT]).map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {getAgentDisplayName(agent)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-            </label>
-            {availableToolsForAgent.length > 0 ? (
-              <div className="flex flex-col gap-1 text-sm lg:items-end">
-                <span className="font-medium text-foreground">Tools</span>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  {availableToolsForAgent.map((tool) => {
-                    const isDefault = selectedAgent.default_tools.includes(tool.name);
-                    const isActive = isDefault || selectedTools.includes(tool.name);
-                    return (
-                      <button
-                        key={tool.name}
-                        type="button"
-                        onClick={() => toggleTool(tool.name)}
-                        disabled={isPending || isDefault}
-                        title={tool.description}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-sm transition",
-                          isActive
-                            ? "border-primary/35 bg-primary/10 text-foreground"
-                            : "border-border/70 bg-background text-muted-foreground hover:border-primary/25 hover:text-foreground",
-                          isDefault ? "cursor-default" : "",
-                        )}
-                      >
-                        {getToolDisplayName(tool)}
-                        {isDefault ? " (default)" : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground lg:self-end">No tools are configured for this agent yet.</p>
-            )}
-          </div>
-
-        </div>
 
         <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-1 sm:px-2">
           <div className="space-y-5 pb-4">
@@ -855,7 +839,63 @@ export function AnalystChat({ userInitial }: AnalystChatProps) {
                 }
               }}
             />
-            <div className="mt-3 flex items-center justify-end">
+            <div className="relative mt-3 flex items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className={cn(
+                  "rounded-full",
+                  isToolMenuOpen ? "border-primary/35 bg-primary/10 text-primary" : "",
+                )}
+                onClick={() => setIsToolMenuOpen((current) => !current)}
+                disabled={isPending}
+                aria-label="Open chat tools"
+                aria-expanded={isToolMenuOpen}
+              >
+                <Plus className="size-4" />
+              </Button>
+              {isToolMenuOpen ? (
+                <div className="absolute bottom-12 left-0 z-20 w-72 rounded-2xl border border-border bg-white p-3 shadow-[0_18px_50px_rgba(11,18,32,0.16)] dark:bg-[#252832]">
+                  <div className="space-y-2">
+                    {availableToolsForAgent.map((tool) => {
+                      const isDefault = selectedAgent.default_tools.includes(tool.name);
+                      const isActive = isDefault || selectedTools.includes(tool.name);
+                      return (
+                        <button
+                          key={tool.name}
+                          type="button"
+                          onClick={() => toggleTool(tool.name)}
+                          disabled={isPending || isDefault}
+                          title={tool.description}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition",
+                            isActive
+                              ? "border-primary/35 bg-primary/10 text-foreground"
+                              : "border-border/70 bg-background text-muted-foreground hover:border-primary/25 hover:text-foreground",
+                            isDefault ? "cursor-default" : "",
+                          )}
+                        >
+                          <span>{getToolDisplayName(tool)}</span>
+                          <span className="text-xs text-muted-foreground">{isActive ? "On" : "Off"}</span>
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={createTaskFromConversation}
+                      disabled={isPending || messages.length === 0}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3 py-2 text-left text-sm text-foreground transition hover:border-primary/25 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      <span className="flex items-center gap-2">
+                        <SquareCheckBig className="size-4 text-primary" />
+                        Create task
+                      </span>
+                      <span className="text-xs text-muted-foreground">Manual</span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <Button
                 type="button"
                 className="rounded-full px-4"

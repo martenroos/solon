@@ -71,6 +71,7 @@ export type BackendChatChart = {
   label_key?: string | null;
   value_key?: string | null;
   stacked: boolean;
+  source_query_sql?: string | null;
 };
 
 export type BackendChatTask = {
@@ -229,6 +230,22 @@ export type BackendFinanceOverview = {
   insightCards: BackendFinanceInsightCard[];
 };
 
+export type BackendSavedChartSurface = "dashboard";
+
+export type BackendSavedChart = {
+  id: number;
+  surface: BackendSavedChartSurface;
+  chart: BackendChatChart;
+  source_query_sql: string;
+  row_count: number;
+  refreshed_at: string;
+  error?: string | null;
+};
+
+export type BackendSavedChartListResponse = {
+  charts: BackendSavedChart[];
+};
+
 function getBackendConfig() {
   return {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8000",
@@ -273,6 +290,89 @@ export async function getFinanceOverview(user: {
   }
 
   return response.json() as Promise<BackendFinanceOverview>;
+}
+
+export async function getSavedCharts(
+  user: { email: string; provider?: string | null },
+  surface: BackendSavedChartSurface,
+): Promise<BackendSavedChart[]> {
+  const { backendUrl, internalApiKey, userAuthSecret } = getBackendConfig();
+  const { createBackendUserAuthToken } = await import("@/lib/backend-user-auth");
+
+  if (!internalApiKey) {
+    throw new Error("Missing BACKEND_INTERNAL_API_KEY.");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${backendUrl}/api/v1/finance/saved-charts?surface=${encodeURIComponent(surface)}`,
+      {
+        headers: {
+          "X-Internal-API-Key": internalApiKey,
+          "X-User-Auth": createBackendUserAuthToken({
+            email: user.email,
+            provider: user.provider,
+            secret: userAuthSecret,
+          }),
+        },
+        cache: "no-store",
+      },
+    );
+  } catch {
+    return [];
+  }
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as BackendSavedChartListResponse;
+  return payload.charts;
+}
+
+export async function createSavedChart(
+  user: { email: string; provider?: string | null },
+  payload: {
+    surface: BackendSavedChartSurface;
+    chart: BackendChatChart;
+    source_query_sql?: string | null;
+  },
+): Promise<BackendSavedChart> {
+  const { backendUrl, internalApiKey, userAuthSecret } = getBackendConfig();
+  const { createBackendUserAuthToken } = await import("@/lib/backend-user-auth");
+
+  if (!internalApiKey) {
+    throw new Error("Missing BACKEND_INTERNAL_API_KEY.");
+  }
+
+  const response = await fetch(`${backendUrl}/api/v1/finance/saved-charts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Internal-API-Key": internalApiKey,
+      "X-User-Auth": createBackendUserAuthToken({
+        email: user.email,
+        provider: user.provider,
+        secret: userAuthSecret,
+      }),
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let detail = `Failed to save chart (${response.status}).`;
+    try {
+      const errorPayload = (await response.json()) as { detail?: string };
+      detail = errorPayload.detail ?? detail;
+    } catch {
+      // Use generic detail.
+    }
+    throw new Error(detail);
+  }
+
+  return response.json() as Promise<BackendSavedChart>;
 }
 
 export async function getBackendUser(email: string): Promise<BackendUser | null> {

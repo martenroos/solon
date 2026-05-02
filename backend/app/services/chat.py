@@ -237,6 +237,7 @@ class ChatOrchestrator:
                 f"{system_prompt}\n\n"
                 f"{FINANCE_WAREHOUSE_QUERY_GUIDE}\n\n"
                 "When using query_finance_db, inspect the returned rows before answering. "
+                "If a query fails with a type mismatch, repair the SQL by switching to the mart view that already exposes the needed labels and amounts; do not ask the user whether to proceed with a text-only summary until one repaired query has also failed. "
                 "If the result is empty, say that the query returned no matching rows and adjust once if a clear better query is available."
             )
         if any(tool.name == "render_chart" for tool in active_tools):
@@ -247,12 +248,13 @@ class ChatOrchestrator:
                 "- include x_key\n"
                 "- include at least one series\n"
                 "- each data row must contain the x_key field and numeric values for every series key\n"
-                "- never send empty data arrays\n"
+                "- either send a populated data array or source_query_sql so the tool can load data\n"
                 "For pie charts:\n"
                 "- include label_key and value_key\n"
                 "- each data row must contain the label field and a numeric value field\n"
-                "- never send empty data arrays\n"
-                "If you do not have concrete chart data, answer normally without calling render_chart."
+                "- either send a populated data array or source_query_sql so the tool can load data\n"
+                "When the chart is based on query_finance_db, include source_query_sql with the exact SQL used so the chart can be refreshed from live data. "
+                "If you do not have concrete chart data or a source query, answer normally without calling render_chart."
             )
         if any(tool.name == "add_task_to_board" for tool in active_tools):
             system_prompt = (

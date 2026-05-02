@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel
+
+from app.schemas.chat import ChatChart
 
 
 class FinanceKpiResponse(BaseModel):
@@ -87,3 +91,26 @@ class FinanceOverviewResponse(BaseModel):
     companyName: str | None = None
     dashboard: FinanceDashboardResponse
     insightCards: list[FinanceInsightCardResponse]
+
+
+SavedChartSurface = Literal["dashboard"]
+
+
+class SavedChartCreateRequest(BaseModel):
+    surface: SavedChartSurface
+    chart: ChatChart
+    source_query_sql: str | None = None
+
+
+class SavedChartResponse(BaseModel):
+    id: int
+    surface: SavedChartSurface
+    chart: ChatChart
+    source_query_sql: str
+    row_count: int
+    refreshed_at: str
+    error: str | None = None
+
+
+class SavedChartListResponse(BaseModel):
+    charts: list[SavedChartResponse]

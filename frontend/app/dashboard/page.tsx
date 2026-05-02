@@ -13,8 +13,9 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChatChartList } from "@/components/chat-chart-sidebar";
 import { WorkspaceShell } from "@/components/workspace-shell";
-import { getFinanceOverview } from "@/lib/backend";
+import { getFinanceOverview, getSavedCharts } from "@/lib/backend";
 import { requireVerifiedWorkspaceUser } from "@/lib/workspace";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,13 @@ export default async function DashboardPage() {
     email: session.user.email,
     provider: session.user.provider,
   });
+  const savedCharts = await getSavedCharts(
+    {
+      email: session.user.email,
+      provider: session.user.provider,
+    },
+    "dashboard",
+  );
   const dashboard = finance.dashboard;
 
   return (
@@ -149,6 +157,23 @@ export default async function DashboardPage() {
             );
           })}
         </section>
+
+        {savedCharts.length > 0 ? (
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="md:col-span-2 xl:col-span-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">Saved Live Charts</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Analyst charts refreshed from their saved finance queries.
+                  </p>
+                </div>
+                <Badge variant="muted">Live data</Badge>
+              </div>
+            </div>
+            <ChatChartList charts={savedCharts.map((item) => item.chart)} />
+          </section>
+        ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="border-white/70 bg-white/82">
