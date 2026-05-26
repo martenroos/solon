@@ -323,6 +323,7 @@ function getPriorityIcon(title: string) {
 function getKpiIcon(label: string) {
   const normalized = label.toLowerCase();
   if (normalized.includes("revenue")) return DollarSign;
+  if (normalized.includes("ebitda")) return TrendingUp;
   if (normalized.includes("margin")) return TrendingDown;
   if (normalized.includes("cash")) return Wallet;
   if (normalized.includes("ar")) return HandCoins;

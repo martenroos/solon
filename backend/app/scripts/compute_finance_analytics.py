@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import asyncio
 
-from app.api.routes.finance import get_finance_overview
+from app.domains.finance.overview import build_finance_overview
 from app.db import SessionLocal
 
 
 async def compute_finance_analytics() -> None:
     async with SessionLocal() as session:
-        overview = await get_finance_overview(_=None, session=session)
+        overview = await build_finance_overview(session)
         print("Computed finance analytics:")
         print(f"  company: {overview.companyName or 'none'}")
         print(f"  insight_signals: {len(overview.insightCards)}")

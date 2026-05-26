@@ -23,6 +23,7 @@ import {
   RefreshCcw,
   ReceiptText,
   ScanSearch,
+  Search,
   ShieldAlert,
   ShoppingCart,
   TrendingDown,
@@ -35,6 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import type { BackendFinanceInsightCard } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 
@@ -91,9 +93,9 @@ const TENANTS: TenantOption[] = [
 const INSIGHT_OPTIONS: InsightOption[] = [
   {
     id: "revenue-trend",
-    title: "Revenue trend by period",
+    title: "Revenue growth",
     category: "insight",
-    summary: "Shows how revenue is moving by fiscal period, company, and org unit.",
+    summary: "Tracks MoM and YoY revenue growth from fiscal-period P&L movement.",
     detail: "Useful as the base card for executive review and period-over-period trend interpretation.",
     dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_org_unit"],
     value: "Trend",
@@ -108,11 +110,11 @@ const INSIGHT_OPTIONS: InsightOption[] = [
   },
   {
     id: "gross-margin",
-    title: "Gross margin trend",
+    title: "Gross margin % by customer",
     category: "insight",
-    summary: "Tracks revenue against direct cost groupings to explain margin movement.",
-    detail: "This is where finance can isolate whether pressure comes from price, cost mix, or delivery cost drift.",
-    dataSources: ["fact_journal_entry_line", "dim_ledger_account"],
+    summary: "Tracks revenue against direct cost groupings and allocates margin pressure to customers.",
+    detail: "Customer margin uses org-unit direct-cost allocation; product margin appears when product-line data is available.",
+    dataSources: ["fact_journal_entry_line", "dim_ledger_account", "dim_counterparty"],
     value: "Margin",
     actionLabel: "Inspect margin mix",
     size: "sm",
@@ -122,6 +124,40 @@ const INSIGHT_OPTIONS: InsightOption[] = [
     status: "Watch",
     trend: [52, 50, 48, 47, 45, 43, 42],
     icon: Diff,
+  },
+  {
+    id: "net-profit-margin",
+    title: "Net profit margin",
+    category: "insight",
+    summary: "Shows net operating profitability after cost of sales and operating expenses.",
+    detail: "Gives finance a compact view of how much revenue remains after the current operating cost base.",
+    dataSources: ["fact_journal_entry_line", "dim_ledger_account"],
+    value: "Margin",
+    actionLabel: "Inspect profit drivers",
+    size: "sm",
+    metric: "18.4%",
+    delta: "+0.8 pts",
+    deltaDirection: "up",
+    status: "On track",
+    trend: [14, 15, 16, 16, 17, 18, 18],
+    icon: Gauge,
+  },
+  {
+    id: "ebitda-trend",
+    title: "EBITDA trend",
+    category: "insight",
+    summary: "Tracks operating profitability before financing and tax effects.",
+    detail: "Uses the available P&L operating groups as the EBITDA proxy until depreciation and amortization accounts are modeled separately.",
+    dataSources: ["fact_journal_entry_line", "dim_ledger_account"],
+    value: "EBITDA",
+    actionLabel: "Review EBITDA trend",
+    size: "sm",
+    metric: "€420k",
+    delta: "+4.1%",
+    deltaDirection: "up",
+    status: "On track",
+    trend: [280, 300, 315, 350, 370, 395, 420],
+    icon: LineChart,
   },
   {
     id: "opex-run-rate",
@@ -608,6 +644,7 @@ const INSIGHT_OPTIONS: InsightOption[] = [
 ];
 
 const DEFAULT_VISIBLE_IDS = INSIGHT_OPTIONS.map((item) => item.id);
+const REQUIRED_VISIBLE_IDS = ["net-profit-margin", "ebitda-trend"];
 const DEFAULT_SIZE_BY_ID: Partial<Record<string, CardSize>> = {};
 const CARD_SIZE_OPTIONS: CardSize[] = ["sm", "lg"];
 
@@ -635,7 +672,7 @@ function normalizeTenantState(value?: Partial<TenantState>): TenantState {
   const visibleIds = Array.isArray(value?.visibleIds)
     ? value.visibleIds.filter((id) => DEFAULT_VISIBLE_IDS.includes(id))
     : DEFAULT_VISIBLE_IDS;
-  const dedupedVisibleIds = Array.from(new Set(visibleIds));
+  const dedupedVisibleIds = Array.from(new Set([...visibleIds, ...REQUIRED_VISIBLE_IDS]));
   const sizeEntries = Object.entries(value?.sizeById ?? {}).flatMap(([id, size]) => {
     if (!DEFAULT_VISIBLE_IDS.includes(id)) {
       return [];
@@ -770,6 +807,10 @@ function buildSparklineCoordinates(values: number[]) {
 
 function buildSparklinePath(points: { x: number; y: number }[]) {
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+}
+
+function buildRevenuePath(points: { x: number; y: number }[]) {
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
 }
 
 function buildAreaPath(points: { x: number; y: number }[]) {
@@ -1188,6 +1229,7 @@ export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsigh
               return (
                 <Card
                   key={item.id}
+                  onClick={() => setSelectedInsightId(item.id)}
                   onDragOver={(event) => {
                     event.preventDefault();
                     if (draggingCardId && draggingCardId !== item.id) {
@@ -1211,7 +1253,7 @@ export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsigh
                     setDropTargetCardId(null);
                   }}
                   className={cn(
-                    "group relative flex h-full flex-col overflow-hidden border-white/70 bg-white/82 transition-all duration-200 ease-out",
+                    "group relative flex h-full cursor-pointer flex-col overflow-hidden border-white/70 bg-white/82 transition-all duration-200 ease-out hover:border-primary/25",
                     draggingCardId === item.id ? "opacity-55" : null,
                     dropTargetCardId === item.id ? "ring-2 ring-primary/35" : null,
                     getCardSpan(item.size),
@@ -1223,6 +1265,7 @@ export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsigh
                         <button
                           type="button"
                           draggable
+                          onClick={(event) => event.stopPropagation()}
                           onDragStart={(event) => {
                             event.dataTransfer.effectAllowed = "move";
                             event.dataTransfer.setData("text/plain", item.id);
@@ -1252,14 +1295,19 @@ export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsigh
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5 opacity-55 transition group-hover:opacity-100">
-                        <CardSizeControl
-                          value={item.size}
-                          onChange={(size) => updateCardSize(item.id, size)}
-                          label={`Set size for ${item.title}`}
-                        />
+                        <div onClick={(event) => event.stopPropagation()}>
+                          <CardSizeControl
+                            value={item.size}
+                            onChange={(size) => updateCardSize(item.id, size)}
+                            label={`Set size for ${item.title}`}
+                          />
+                        </div>
                         <button
                           type="button"
-                          onClick={() => toggleCardVisibility(item.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleCardVisibility(item.id);
+                          }}
                           className="rounded-full border border-border/60 bg-background/65 p-1.5 text-muted-foreground transition hover:text-foreground"
                           aria-label={`Hide ${item.title}`}
                         >
@@ -1267,7 +1315,10 @@ export function InsightsDashboard({ cards = [] }: { cards?: BackendFinanceInsigh
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedInsightId(item.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedInsightId(item.id);
+                          }}
                           className="rounded-full border border-border/60 bg-background/65 p-1.5 text-muted-foreground transition hover:text-foreground"
                           aria-label={`Open details for ${item.title}`}
                         >
@@ -1425,17 +1476,17 @@ function InsightDetailModal({ item, onClose }: { item: InsightOption; onClose: (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 px-4 py-6 backdrop-blur-sm sm:py-10"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby={`insight-detail-${item.id}`}
       onMouseDown={onClose}
     >
       <Card
-        className="w-full max-w-4xl overflow-hidden border-white/75 bg-white/95 shadow-[0_28px_120px_rgba(11,18,32,0.24)]"
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border-white/75 bg-white/95 shadow-[0_28px_120px_rgba(11,18,32,0.32)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <CardHeader className="border-b border-border/70 p-5 md:p-6">
+        <CardHeader className="sticky top-0 z-10 border-b border-border/70 bg-white/95 p-5 backdrop-blur md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-3">
@@ -1465,10 +1516,14 @@ function InsightDetailModal({ item, onClose }: { item: InsightOption; onClose: (
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-5 p-5 md:p-6">
+        <CardContent className="space-y-5 overflow-y-auto p-5 md:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_220px] md:items-start">
             <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/55">
-              <Sparkline values={item.trend} category={item.category} status={item.status} className="h-[132px]" />
+              {item.id === "revenue-trend" ? (
+                <RevenueGrowthChart item={item} />
+              ) : (
+                <Sparkline values={item.trend} category={item.category} status={item.status} className="h-[132px]" />
+              )}
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/55 p-4">
               <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Current</p>
@@ -1484,6 +1539,8 @@ function InsightDetailModal({ item, onClose }: { item: InsightOption; onClose: (
             <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">What this means</p>
             <p className="mt-2 text-sm leading-6 text-foreground">{item.explanation ?? item.detail}</p>
           </div>
+
+          {item.id === "revenue-trend" ? <RevenueGrowthDetails item={item} /> : null}
 
           {item.segments?.length ? <SegmentBreakdown item={item} /> : null}
 
@@ -1510,6 +1567,197 @@ function InsightDetailModal({ item, onClose }: { item: InsightOption; onClose: (
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function RevenueGrowthDetails({ item }: { item: InsightOption }) {
+  const currentRevenue = getEvidenceNumber(item.evidence, "current_revenue");
+  const previousRevenue = getEvidenceNumber(item.evidence, "previous_revenue");
+  const yearAgoRevenue = getEvidenceNumber(item.evidence, "year_ago_revenue");
+  const momGrowth = getEvidenceNumber(item.evidence, "mom_growth_pct");
+  const yoyGrowth = getEvidenceNumber(item.evidence, "yoy_growth_pct");
+  const bridgeRows = getEvidenceRows(item.evidence, "driver_bridge");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const customerOptions = useMemo(() => {
+    const names = bridgeRows
+      .map((row) => (typeof row.customer_name === "string" ? row.customer_name : null))
+      .filter((value): value is string => Boolean(value));
+
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }, [bridgeRows]);
+  const filteredRows = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+
+    return bridgeRows.filter((row) => {
+      const customerName = String(row.customer_name ?? "");
+      const matchesCustomer = customerFilter === "all" || customerName === customerFilter;
+      const searchableText = [
+        row.customer_name,
+        row.org_unit_name,
+        row.account_code,
+        row.account_name,
+      ]
+        .map((value) => String(value ?? "").toLowerCase())
+        .join(" ");
+      const matchesSearch = !normalizedSearch || searchableText.includes(normalizedSearch);
+
+      return matchesCustomer && matchesSearch;
+    });
+  }, [bridgeRows, customerFilter, searchQuery]);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-border/70 bg-background/55 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Revenue growth breakdown</p>
+            <p className="mt-2 text-sm leading-6 text-foreground">
+              Current-period growth is compared against both the previous fiscal period and the same fiscal period last year.
+            </p>
+          </div>
+          <Badge variant={item.status === "Watch" ? "gold" : item.status === "On track" ? "default" : "muted"}>
+            {item.status}
+          </Badge>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <EvidenceStat label="Current revenue" value={formatMoneyValue(currentRevenue)} />
+          <EvidenceStat label="Previous period" value={formatMoneyValue(previousRevenue)} />
+          <EvidenceStat label="Same period LY" value={formatMoneyValue(yearAgoRevenue)} />
+          <EvidenceStat label="MoM growth" value={formatPercentValue(momGrowth)} />
+          <EvidenceStat label="YoY growth" value={formatPercentValue(yoyGrowth)} />
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-border/70 bg-background/55 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">Driver bridge</p>
+            <p className="mt-2 text-sm leading-6 text-foreground">
+              Current versus previous revenue by customer, org unit, and account.
+            </p>
+          </div>
+          <Badge variant="muted">{filteredRows.length}/{bridgeRows.length} rows</Badge>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[240px_1fr]">
+          <label className="grid gap-2 text-xs font-medium text-muted-foreground">
+            Customer
+            <select
+              value={customerFilter}
+              onChange={(event) => setCustomerFilter(event.target.value)}
+              className="h-12 rounded-2xl border border-border/80 bg-background/80 px-4 py-3 text-sm text-foreground shadow-sm outline-none transition focus-visible:border-primary/50 focus-visible:ring-4 focus-visible:ring-primary/10"
+            >
+              <option value="all">All customers</option>
+              {customerOptions.map((customer) => (
+                <option key={customer} value={customer}>
+                  {customer}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-2 text-xs font-medium text-muted-foreground">
+            Search
+            <span className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search customer, org unit, account"
+                className="pl-10"
+              />
+            </span>
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <EvidenceTable label="Revenue growth bridge" rows={filteredRows} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RevenueGrowthChart({ item }: { item: InsightOption }) {
+  const chartId = useId();
+  const currentRevenue = getEvidenceNumber(item.evidence, "current_revenue");
+  const previousRevenue = getEvidenceNumber(item.evidence, "previous_revenue");
+  const yearAgoRevenue = getEvidenceNumber(item.evidence, "year_ago_revenue");
+  const values = item.trend.length ? item.trend : [0];
+  const maxTrend = Math.max(...values, 0.01);
+  const minTrend = Math.min(...values, 0);
+  const range = Math.max(maxTrend - minTrend, 0.01);
+  const points = values.map((value, index) => {
+    const x = 22 + (index * 116) / Math.max(values.length - 1, 1);
+    const y = 86 - ((value - minTrend) / range) * 54;
+    return { x, y, value };
+  });
+  const linePath = buildRevenuePath(points);
+  const areaPath = `${linePath} L ${points[points.length - 1]?.x ?? 138} 94 L ${points[0]?.x ?? 22} 94 Z`;
+  const comparison = [
+    { label: "Prev", value: previousRevenue, color: "var(--color-chart-4)" },
+    { label: "Current", value: currentRevenue, color: "var(--color-chart-2)" },
+    { label: "LY", value: yearAgoRevenue, color: "var(--color-chart-5)" },
+  ];
+  const maxComparison = Math.max(...comparison.map((bar) => bar.value ?? 0), 1);
+
+  return (
+    <div className="grid min-h-[132px] gap-4 bg-gradient-to-b from-white/80 to-background/45 p-4 md:grid-cols-[1fr_190px]">
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">6-period revenue trend</p>
+          <p className="text-xs font-medium text-muted-foreground">{formatShortMoney(currentRevenue)}</p>
+        </div>
+        <svg viewBox="0 0 160 108" className="mt-2 h-[92px] w-full overflow-visible" role="img" aria-label="Revenue trend chart">
+          <defs>
+            <linearGradient id={`${chartId}-revenue-fill`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="var(--color-chart-2)" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="var(--color-chart-2)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[32, 59, 86].map((y) => (
+            <line key={y} x1="18" x2="142" y1={y} y2={y} stroke="hsl(var(--border))" strokeDasharray="3 4" strokeOpacity="0.85" />
+          ))}
+          <path d={areaPath} fill={`url(#${chartId}-revenue-fill)`} />
+          <path d={linePath} fill="none" stroke="var(--color-chart-2)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((point, index) => (
+            <g key={`${point.x}-${index}`}>
+              <circle cx={point.x} cy={point.y} r={3.6} fill="white" stroke="var(--color-chart-2)" strokeWidth="2.4" />
+              {index === points.length - 1 ? (
+                <text x={point.x} y={point.y - 9} textAnchor="middle" className="fill-foreground text-[9px] font-semibold">
+                  Now
+                </text>
+              ) : null}
+            </g>
+          ))}
+          <text x="18" y="105" className="fill-muted-foreground text-[8px]">Older</text>
+          <text x="142" y="105" textAnchor="end" className="fill-muted-foreground text-[8px]">Current</text>
+        </svg>
+      </div>
+
+      <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+        <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">Period compare</p>
+        <div className="mt-3 grid gap-2">
+          {comparison.map((bar) => {
+            const width = `${Math.max(((bar.value ?? 0) / maxComparison) * 100, bar.value ? 8 : 0)}%`;
+
+            return (
+              <div key={bar.label} className="grid gap-1">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium text-foreground">{bar.label}</span>
+                  <span className="text-muted-foreground">{formatShortMoney(bar.value)}</span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full" style={{ width, backgroundColor: bar.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1635,7 +1883,7 @@ function EvidenceTable({ label, rows }: { label: string; rows: Record<string, un
               <tr key={rowIndex} className="border-t border-border/60">
                 {columns.map((column) => (
                   <td key={column} className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">
-                    {formatEvidenceValue(row[column])}
+                    {formatEvidenceValue(row[column], column)}
                   </td>
                 ))}
               </tr>
@@ -1663,15 +1911,26 @@ function getEvidenceTables(evidence?: Record<string, unknown> | null) {
   });
 }
 
+function getEvidenceRows(evidence: Record<string, unknown> | null | undefined, key: string) {
+  const value = evidence?.[key];
+  return Array.isArray(value) ? value.filter(isEvidenceRow) : [];
+}
+
 function isEvidenceRow(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function getEvidenceColumns(rows: Record<string, unknown>[]) {
   const preferred = [
+    "customer_name",
     "account_code",
     "account_name",
     "org_unit_name",
+    "current_revenue",
+    "previous_revenue",
+    "revenue_change",
+    "change_pct",
+    "growth_contribution_pct",
     "counterparty_name",
     "source",
     "invoice_date",
@@ -1702,12 +1961,47 @@ function formatColumnLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function formatEvidenceValue(value: unknown) {
+function formatEvidenceValue(value: unknown, column?: string) {
   if (value === null || value === undefined || value === "") return "—";
   if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (typeof value === "number") {
+    if (column?.includes("revenue") || column?.includes("amount")) return formatMoneyValue(value);
+    if (column?.includes("pct")) return formatPercentValue(value);
+    return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
+}
+
+function getEvidenceNumber(evidence: Record<string, unknown> | null | undefined, key: string) {
+  const value = evidence?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatMoneyValue(value: number | null) {
+  if (value === null) return "—";
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatShortMoney(value: number | null) {
+  if (value === null) return "—";
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+
+  if (absolute >= 1_000_000) return `${sign}EUR ${(absolute / 1_000_000).toFixed(2)}M`;
+  if (absolute >= 1_000) return `${sign}EUR ${Math.round(absolute / 1_000)}k`;
+  return `${sign}EUR ${Math.round(absolute)}`;
+}
+
+function formatPercentValue(value: number | null) {
+  if (value === null) return "—";
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
 function formatDateTime(value: string) {

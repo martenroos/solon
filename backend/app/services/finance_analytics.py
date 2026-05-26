@@ -20,6 +20,8 @@ MAX_RUN_AGE_MINUTES = 15
 SIGNAL_METADATA: dict[str, tuple[str, str, str]] = {
     "revenue-trend": ("metric", "period_revenue_trend", "period-over-period revenue aggregation"),
     "gross-margin": ("metric", "gross_margin_monitor", "revenue less cost of sales margin calculation"),
+    "net-profit-margin": ("metric", "net_profit_margin_monitor", "revenue less cost of sales and operating expenses margin calculation"),
+    "ebitda-trend": ("metric", "ebitda_trend_monitor", "operating profitability trend calculation"),
     "opex-run-rate": ("metric", "opex_run_rate", "operating expense run-rate aggregation"),
     "trial-balance-movement": ("anomaly", "trial_balance_movement_detector", "material account movement thresholding"),
     "budget-vs-actual": ("anomaly", "budget_variance_detector", "budget variance thresholding"),
