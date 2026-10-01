@@ -1,6 +1,6 @@
 # Solon Backend
 
-Minimal FastAPI scaffold for the Solon platform.
+FastAPI backend for Solon. See the [root README](../README.md) for an overview of the project and its architecture.
 
 ## Run locally
 
