@@ -125,7 +125,7 @@ Finance warehouse query guide:
 
 READ_ONLY_SQL_START_RE = re.compile(r"^\s*(select|with)\b", re.IGNORECASE)
 FORBIDDEN_SQL_RE = re.compile(
-    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|call|do|execute|merge|vacuum|refresh|reindex|set|reset)\b",
+    r"\b(insert|into|update|delete|drop|alter|create|truncate|grant|revoke|copy|call|do|execute|merge|vacuum|refresh|reindex|set|reset)\b",
     re.IGNORECASE,
 )
 FORBIDDEN_SQL_TARGET_RE = re.compile(
