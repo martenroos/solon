@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   BarChart3,
   BrainCircuit,
-  FileText,
   Lightbulb,
   Menu,
   SquareCheckBig,
@@ -26,7 +25,6 @@ const navItems = [
   { href: "/analyst", label: "Analyst", icon: BrainCircuit },
   { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/tasks", label: "Tasks", icon: SquareCheckBig },
-  { href: "/reports", label: "Reports", icon: FileText },
 ];
 
 type WorkspaceHeaderProps = {
