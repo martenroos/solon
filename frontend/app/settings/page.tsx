@@ -8,16 +8,10 @@ export default async function SettingsPage() {
   const { backendUser } = await requireVerifiedWorkspaceUser();
 
   return (
-    <WorkspaceShell
-      eyebrow="Settings"
-      title="Manage your account from one place"
-      description="Use account settings for identity details, access status, and administrative controls when available."
-      hidePageHeader
-      user={backendUser}
-    >
+    <WorkspaceShell user={backendUser}>
       <SettingsShell user={backendUser}>
         <section className="grid gap-6 lg:grid-cols-2">
-          <Card className="border-white/70 bg-white/82">
+          <Card>
             <CardHeader>
               <Badge className="w-fit">Identity</Badge>
               <CardTitle className="text-2xl">Signed-in account</CardTitle>

@@ -42,9 +42,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     }
 
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_24%),linear-gradient(180deg,#F8FAFC_0%,#EEF2FF_100%)]">
+      <main className="min-h-screen">
         <div className="solon-shell flex min-h-screen items-center justify-center py-8">
-          <Card className="w-full max-w-lg border-white/80 bg-white/92">
+          <Card className="w-full max-w-lg">
             <CardContent className="space-y-5 p-8 text-center">
               <Badge className="mx-auto" variant="muted">
                 Pending approval
@@ -66,7 +66,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_24%),linear-gradient(180deg,#F8FAFC_0%,#EEF2FF_100%)]">
+    <main className="min-h-screen">
       <div className="solon-shell flex min-h-screen flex-col py-8">
         <div className="mb-10">
           <Button variant="ghost" asChild className="rounded-full px-0 text-muted-foreground">
@@ -94,7 +94,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 return (
                   <div
                     key={point}
-                    className="flex items-center gap-4 rounded-3xl border border-white/70 bg-white/70 p-4"
+                    className="flex items-center gap-4 rounded-3xl border border-border/70 bg-card/70 p-4"
                   >
                     <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon className="size-5" />
@@ -106,7 +106,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           </div>
 
-          <Card className="mx-auto w-full max-w-md border-white/80 bg-white/92">
+          <Card className="mx-auto w-full max-w-md">
             <CardHeader className="space-y-3 p-8">
               <Badge variant="muted" className="w-fit">
                 Solon account

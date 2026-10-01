@@ -11,12 +11,7 @@ export default async function InsightsPage() {
   });
 
   return (
-    <WorkspaceShell
-      title=""
-      description=""
-      hidePageHeader
-      user={backendUser}
-    >
+    <WorkspaceShell user={backendUser}>
       <InsightsDashboard cards={finance.insightCards} />
     </WorkspaceShell>
   );

@@ -69,11 +69,18 @@
   --border: oklch(0.9 0.015 250);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.705 0.015 286.067);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Categorical chart palette — hues lifted from the app's own accents (emerald =
+     the existing "on track" status green, blue = primary's own hue at 259.8,
+     teal = the #14B8A6 icon accent on the dark hero panels, gold = the #C2A36B
+     "Watch" status), chroma/lightness nudged just enough to clear the validator
+     (lightness/chroma/CVD/contrast) against the light card surface; berry is the
+     one new hue, needed since the app has no other warm accent (red is reserved
+     for status). Order is the CVD-safety mechanism, keep it fixed. */
+  --chart-1: oklch(0.55 0.14 163); /* emerald */
+  --chart-2: oklch(0.45 0.14 261); /* blue */
+  --chart-3: oklch(0.55 0.13 182); /* teal */
+  --chart-4: oklch(0.62 0.13 80); /* gold */
+  --chart-5: oklch(0.55 0.14 350); /* berry */
   --sidebar: oklch(1 0 0 / 0.36);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.21 0.006 285.885);
@@ -105,11 +112,12 @@
   --border: oklch(1 0 0 / 0.12);
   --input: oklch(1 0 0 / 0.15);
   --ring: oklch(0.552 0.016 285.938);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* Same hue family as :root, stepped for the dark surface — validated separately. */
+  --chart-1: oklch(0.63 0.15 163); /* emerald */
+  --chart-2: oklch(0.6 0.16 261); /* blue */
+  --chart-3: oklch(0.63 0.14 182); /* teal */
+  --chart-4: oklch(0.66 0.14 80); /* gold */
+  --chart-5: oklch(0.62 0.16 350); /* berry */
   --sidebar: oklch(0.21 0.006 285.885 / 0.44);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

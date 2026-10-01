@@ -20,13 +20,7 @@ export default async function SettingsAdminPage() {
   const users = await getAdminUsers(backendUser.email);
 
   return (
-    <WorkspaceShell
-      eyebrow="Settings"
-      title="Administrative controls"
-      description="Manage workspace access from the settings section instead of the primary product navigation."
-      hidePageHeader
-      user={backendUser}
-    >
+    <WorkspaceShell user={backendUser}>
       <SettingsShell user={backendUser}>
         <Card className="border-border/70 bg-card/80">
           <CardHeader>

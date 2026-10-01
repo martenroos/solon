@@ -8,12 +8,7 @@ export default async function TasksPage() {
   const workspaceUsers = await getWorkspaceUsers(backendUser.email);
 
   return (
-    <WorkspaceShell
-      eyebrow="Tasks"
-      title="Track execution with a shared task board"
-      description="Organize work from backlog to done, keep ownership visible, and assign work to users in the same tenant group."
-      user={backendUser}
-    >
+    <WorkspaceShell user={backendUser}>
       <TasksBoard currentUser={backendUser} workspaceUsers={workspaceUsers} />
     </WorkspaceShell>
   );

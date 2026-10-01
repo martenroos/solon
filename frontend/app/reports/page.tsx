@@ -10,14 +10,9 @@ export default async function ReportsPage() {
   const { backendUser } = await requireVerifiedWorkspaceUser();
 
   return (
-    <WorkspaceShell
-      eyebrow="Reports"
-      title="Package the narrative, not just the numbers."
-      description="Reports should export a clear financial story for boards, operators, and investors with minimal editing."
-      user={backendUser}
-    >
+    <WorkspaceShell user={backendUser}>
       <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <Card className="border-white/70 bg-white/82">
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <Badge className="w-fit">Templates</Badge>
