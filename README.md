@@ -6,8 +6,7 @@
 
 > Personal side project, built in evenings and weekends to explore how LLM agents can safely work on structured enterprise data.
 
-<!-- TODO: replace with a screenshot or short GIF of the analyst chat producing a chart -->
-![Solon analyst screenshot](docs/screenshot-analyst.png)
+![Solon analyst: a question answered from the warehouse, with the query result and chart alongside](docs/screenshot-analyst.png)
 
 ## What it does
 
@@ -16,6 +15,8 @@
 - **Tasks from chat**: the agent can turn findings into follow-up tasks on a kanban board, e.g. "chase the top 3 overdue accounts".
 - **Insights and dashboard**: precomputed signals (revenue growth, margins, EBITDA, budget variance, AR/AP aging, cash forecast) with trends, segment breakdowns and the evidence behind each card.
 - **Workspace basics**: Google and Microsoft Entra sign-in, user approval and admin roles, and saved conversation history.
+
+![Solon dashboard: finance pulse, prioritised alerts, data-freshness confidence and KPI trends](docs/screenshot-dashboard.png)
 
 ## Architecture
 
@@ -81,6 +82,7 @@ alembic upgrade head
 python -m app.scripts.setup_llm_readonly_role --password change-me-readonly
 python -m app.scripts.seed_finance_demo          # demo company "SOLON-DEMO"
 python -m app.scripts.compute_finance_analytics  # precompute insight signals
+python -m app.scripts.refresh_demo_sync          # mark demo feeds as freshly synced (rerun when they go stale)
 uvicorn app.main:app --reload                    # http://localhost:8000
 
 # 3. Frontend (new terminal)
