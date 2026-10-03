@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from app.domains.finance.formatting import as_float, delta_pct, money_short, normalize_rows, pct, status_from_risk, trend
+from app.domains.finance.formatting import as_float, delta_pct, delta_pts, level_trend_status, money_short, normalize_rows, pct, signed, status_from_risk, trend
 from app.schemas.finance import FinanceCashForecastPointResponse, FinanceInsightCardResponse, FinanceInsightSegmentResponse
 
 
@@ -131,9 +131,9 @@ def gross_margin_insight(data: InsightInputs) -> FinanceInsightCardResponse:
     return make_card(
         "gross-margin",
         pct(data.gross_margin),
-        f"{data.gross_margin - data.prev_margin:+.1f} pts",
+        delta_pts(data.gross_margin, data.prev_margin),
         "up" if data.gross_margin >= data.prev_margin else "down",
-        status_from_risk(45 if data.gross_margin < data.prev_margin else 5),
+        level_trend_status(below_floor=data.gross_margin < 0, declining=round(data.gross_margin - data.prev_margin, 1) < 0),
         data.margin_trend,
         evidence=evidence,
     )
@@ -150,9 +150,9 @@ def net_profit_margin_insight(data: InsightInputs) -> FinanceInsightCardResponse
     return make_card(
         "net-profit-margin",
         pct(data.net_profit_margin),
-        f"{data.net_profit_margin - data.prev_net_profit_margin:+.1f} pts",
+        delta_pts(data.net_profit_margin, data.prev_net_profit_margin),
         "up" if data.net_profit_margin >= data.prev_net_profit_margin else "down",
-        status_from_risk(55 if data.net_profit_margin < data.prev_net_profit_margin else 5),
+        level_trend_status(below_floor=data.net_profit_margin < 0, declining=round(data.net_profit_margin - data.prev_net_profit_margin, 1) < 0),
         data.net_profit_margin_trend,
         evidence=evidence,
     )
@@ -170,7 +170,7 @@ def ebitda_trend_insight(data: InsightInputs) -> FinanceInsightCardResponse:
         money_short(data.ebitda),
         delta_pct(data.ebitda, data.prev_ebitda),
         "up" if data.ebitda >= data.prev_ebitda else "down",
-        status_from_risk(45 if data.ebitda < data.prev_ebitda else 5),
+        level_trend_status(below_floor=data.ebitda < 0, declining=data.ebitda < data.prev_ebitda),
         data.ebitda_trend,
         evidence=evidence,
     )
@@ -324,7 +324,7 @@ def supplier_payment_priority_insight(data: InsightInputs) -> FinanceInsightCard
 
 def budget_exhaustion_date_insight(data: InsightInputs) -> FinanceInsightCardResponse:
     days = max(1, 30 - round(data.variance_pct))
-    return make_card("budget-exhaustion-date", f"{days} days", "Run-rate runway", "down" if data.variance_pct > 5 else "flat", status_from_risk(data.variance_pct * 4), [30 - data.variance_pct])
+    return make_card("budget-exhaustion-date", f"{days} day" if days == 1 else f"{days} days", "Run-rate runway", "down" if data.variance_pct > 5 else "flat", status_from_risk(data.variance_pct * 4), [30 - data.variance_pct])
 
 
 def month_end_close_variance_insight(data: InsightInputs) -> FinanceInsightCardResponse:
@@ -334,7 +334,7 @@ def month_end_close_variance_insight(data: InsightInputs) -> FinanceInsightCardR
 
 def margin_compression_warning_insight(data: InsightInputs) -> FinanceInsightCardResponse:
     movement = data.gross_margin - data.prev_margin
-    return make_card("margin-compression-warning", f"{movement:+.1f} pts", "Projected next period", "down" if movement < 0 else "flat", status_from_risk(45 if movement < 0 else 5), [data.prev_margin, data.gross_margin])
+    return make_card("margin-compression-warning", f"{signed(movement)} pts", "Projected next period", "down" if movement < 0 else "flat", status_from_risk(45 if movement < 0 else 5), [data.prev_margin, data.gross_margin])
 
 
 def tax_exposure_forecast_insight(data: InsightInputs) -> FinanceInsightCardResponse:

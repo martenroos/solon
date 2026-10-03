@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -25,10 +25,22 @@ def pct(value: float, digits: int = 1) -> str:
     return f"{value:.{digits}f}%"
 
 
+def signed(value: float, digits: int = 1) -> str:
+    rounded = round(value, digits)
+    if rounded == 0:
+        return f"{0:.{digits}f}"  # avoid "-0.0" / "+0.0" for changes that round to nothing
+    return f"{rounded:+.{digits}f}"
+
+
 def delta_pct(current: float, previous: float) -> str:
     if previous == 0:
-        return "+0.0%"
-    return f"{((current - previous) / previous) * 100:+.1f}%"
+        return "n/a"
+    # Divide by |previous| so moving from -12k to -10k reads as an improvement.
+    return f"{signed((current - previous) / abs(previous) * 100)}%"
+
+
+def delta_pts(current: float, previous: float) -> str:
+    return f"{signed(current - previous)} pts"
 
 
 def status_from_risk(score: float) -> str:
@@ -37,6 +49,15 @@ def status_from_risk(score: float) -> str:
     if score >= 33:
         return "Watch"
     return "On track"
+
+
+def level_trend_status(*, below_floor: bool, declining: bool) -> str:
+    """Status for a KPI that has both a level (e.g. negative margin) and a direction."""
+    if below_floor and declining:
+        return status_from_risk(70)
+    if below_floor or declining:
+        return status_from_risk(45)
+    return status_from_risk(5)
 
 
 def trend(values: list[float], fallback: float = 0) -> list[float]:
@@ -48,11 +69,15 @@ def trend(values: list[float], fallback: float = 0) -> list[float]:
     return [cleaned[0]] * (7 - len(cleaned)) + cleaned
 
 
+# Accounting sources typically sync daily; anything older than that is stale.
+STALE_AFTER = timedelta(hours=24)
+
+
 def is_stale(value: Any) -> bool:
     if value is None:
         return True
     if isinstance(value, datetime):
-        return (datetime.now(UTC) - value).total_seconds() > 3600
+        return datetime.now(UTC) - value > STALE_AFTER
     return False
 
 

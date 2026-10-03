@@ -19,7 +19,7 @@ from app.domains.finance.dashboard import (
     build_dashboard_summary_from_priorities,
     build_needs_attention_from_priorities,
 )
-from app.domains.finance.formatting import as_float, delta_pct, format_sync, is_stale, money_short, pct, status_from_risk, trend
+from app.domains.finance.formatting import as_float, delta_pct, delta_pts, format_sync, is_stale, level_trend_status, money_short, pct, status_from_risk, trend
 from app.domains.finance.insights import InsightInputs, build_insight_cards
 from app.domains.finance.models import FinancePeriodContext, ProfitabilitySnapshot
 from app.domains.finance.repository import FinanceRepository
@@ -443,9 +443,9 @@ async def build_finance_overview(session: AsyncSession) -> FinanceOverviewRespon
     dashboard = FinanceDashboardResponse(
         priorities=[],
         kpis=[
-            FinanceKpiResponse(label="Gross margin % by customer", value=pct(gross_margin), delta=f"{gross_margin - prev_margin:+.1f} pts MoM", status=status_from_risk(45 if gross_margin < prev_margin else 10), trend=margin_trend),
-            FinanceKpiResponse(label="Net profit margin", value=pct(net_profit_margin), delta=f"{net_profit_margin - prev_net_profit_margin:+.1f} pts MoM", status=status_from_risk(55 if net_profit_margin < prev_net_profit_margin else 10), trend=net_profit_margin_trend),
-            FinanceKpiResponse(label="EBITDA trend", value=money_short(ebitda), delta=delta_pct(ebitda, prev_ebitda), status=status_from_risk(45 if ebitda < prev_ebitda else 10), trend=ebitda_trend),
+            FinanceKpiResponse(label="Gross margin % by customer", value=pct(gross_margin), delta=f"{delta_pts(gross_margin, prev_margin)} MoM", status=level_trend_status(below_floor=gross_margin < 0, declining=round(gross_margin - prev_margin, 1) < 0), trend=margin_trend),
+            FinanceKpiResponse(label="Net profit margin", value=pct(net_profit_margin), delta=f"{delta_pts(net_profit_margin, prev_net_profit_margin)} MoM", status=level_trend_status(below_floor=net_profit_margin < 0, declining=round(net_profit_margin - prev_net_profit_margin, 1) < 0), trend=net_profit_margin_trend),
+            FinanceKpiResponse(label="EBITDA trend", value=money_short(ebitda), delta=delta_pct(ebitda, prev_ebitda), status=level_trend_status(below_floor=ebitda < 0, declining=ebitda < prev_ebitda), trend=ebitda_trend),
             FinanceKpiResponse(label="Revenue growth", value=delta_pct(revenue, prev_revenue), delta=f"YoY {delta_pct(revenue, year_ago_revenue)}", status=status_from_risk(45 if revenue < prev_revenue else 10), trend=revenue_trend),
         ],
         revenueMarginSeries=monthly,
@@ -460,7 +460,7 @@ async def build_finance_overview(session: AsyncSession) -> FinanceOverviewRespon
         ),
         briefing=FinanceBriefingResponse(
             summary=default_summary,
-            changed=f"Revenue changed {delta_pct(revenue, prev_revenue)} from the previous period and gross margin moved {gross_margin - prev_margin:+.1f} pts.",
+            changed=f"Revenue changed {delta_pct(revenue, prev_revenue)} from the previous period and gross margin moved {delta_pts(gross_margin, prev_margin)}.",
             needsAttention="",
             improving="Cash coverage is sufficient for latest open payables." if cash_position >= ap_total else "Cash coverage is below latest open payables.",
             next="",

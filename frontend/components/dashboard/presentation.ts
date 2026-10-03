@@ -1,12 +1,13 @@
 import {
+  Activity,
   BarChart3,
   CircleAlert,
   DatabaseZap,
   DollarSign,
   HandCoins,
+  Percent,
   RefreshCcw,
   TrendingDown,
-  TrendingUp,
   Wallet,
 } from "lucide-react";
 
@@ -34,8 +35,9 @@ export function getPriorityIcon(title: string) {
 export function getKpiIcon(label: string) {
   const normalized = label.toLowerCase();
   if (normalized.includes("revenue")) return DollarSign;
-  if (normalized.includes("ebitda")) return TrendingUp;
-  if (normalized.includes("margin")) return TrendingDown;
+  // Neutral icons: direction is shown by the delta and status, not hard-coded per KPI.
+  if (normalized.includes("ebitda")) return Activity;
+  if (normalized.includes("margin")) return Percent;
   if (normalized.includes("cash")) return Wallet;
   if (normalized.includes("ar")) return HandCoins;
   if (normalized.includes("budget")) return BarChart3;
@@ -46,6 +48,6 @@ export function getKpiIcon(label: string) {
 export function getDeltaTone(delta: string, status: string) {
   if (status === "Alert") return "text-destructive";
   if (status === "Watch") return "text-[#8A6A35]";
-  if (delta.startsWith("-")) return "text-muted-foreground";
+  if (delta.startsWith("-") || delta.includes("n/a")) return "text-muted-foreground";
   return "text-emerald-600 dark:text-emerald-300";
 }
