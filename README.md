@@ -126,7 +126,9 @@ frontend/
 
 ## Roadmap
 
-- [ ] Mistral as a first-class provider, with model choice per agent
+- [ ] Different integrations with ERP, CRM and bookkeeping software (first Exact Online)
+- [ ] Times series forecasting with Chronos
+- [ ] Include marketing data
 - [ ] Evaluation set of finance questions with expected results, to compare models and prompts
 - [ ] One-command setup (`docker compose up` for the full stack with seeded data)
 - [ ] Streaming responses
